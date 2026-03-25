@@ -1,4 +1,4 @@
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/badge'
@@ -13,24 +13,17 @@ interface Props {
 export default async function SitePage({ params }: Props) {
   const { siteId } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
-
-  const { data: siteData } = await supabase
-    .from('sites')
-    .select('*')
-    .eq('id', siteId)
-    .single()
+  const [{ data: siteData }, { data: postsData }] = await Promise.all([
+    supabase.from('sites').select('*').eq('id', siteId).single(),
+    supabase.from('posts')
+      .select('id, title, slug, status, created_at, updated_at')
+      .eq('site_id', siteId)
+      .order('updated_at', { ascending: false }),
+  ])
 
   const site = siteData as Site | null
   if (!site) notFound()
-
-  const { data: postsData } = await supabase
-    .from('posts')
-    .select('id, title, slug, status, created_at, updated_at')
-    .eq('site_id', siteId)
-    .order('updated_at', { ascending: false })
 
   const posts = (postsData ?? []) as Pick<Post, 'id' | 'title' | 'slug' | 'status' | 'created_at' | 'updated_at'>[]
 

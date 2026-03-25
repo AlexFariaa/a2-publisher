@@ -9,13 +9,12 @@ import type { Site, Profile } from '@/lib/supabase/types'
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Busca profile e posts em paralelo
+  const [{ data: profileData }, { data: postsData }] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase.from('posts').select('site_id'),
+  ])
 
   const profile = profileData as Profile | null
 
@@ -26,11 +25,6 @@ export default async function DashboardPage() {
 
   const { data: sitesData } = await sitesQuery
   const sites = (sitesData ?? []) as Site[]
-
-  // Conta posts por site
-  const { data: postsData } = await supabase
-    .from('posts')
-    .select('site_id')
 
   const postCountBySite = ((postsData ?? []) as { site_id: string }[]).reduce<Record<string, number>>(
     (acc, p) => ({ ...acc, [p.site_id]: (acc[p.site_id] ?? 0) + 1 }),

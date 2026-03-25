@@ -1,7 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
-export async function createClient() {
+// React.cache deduplica chamadas idênticas na mesma requisição HTTP
+// Layout e página chamam getUser() — só 1 roundtrip ao Supabase
+export const createClient = cache(async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -24,7 +27,7 @@ export async function createClient() {
       },
     }
   )
-}
+})
 
 export async function createAdminClient() {
   const cookieStore = await cookies()
