@@ -9,6 +9,7 @@ import type { Site, Profile } from '@/lib/supabase/types'
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   // Busca profile e posts em paralelo
   const [{ data: profileData }, { data: postsData }] = await Promise.all([
