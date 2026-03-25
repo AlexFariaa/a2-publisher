@@ -91,12 +91,23 @@ Isso cria as tabelas, triggers, RLS policies e o bucket de imagens.
 
 ### 4. Crie seu usuário admin
 
+> ⚠️ **Importante:** crie o usuário **depois** de executar o schema. O trigger que cria o profile só funciona para usuários novos. Se você criar o usuário antes, o profile não será gerado automaticamente.
+
 1. Vá em **Supabase → Authentication → Users → Add user → Create new user**
 2. Informe email e senha
 3. No **SQL Editor**, execute:
 
 ```sql
 UPDATE public.profiles SET role = 'admin' WHERE email = 'seu@email.com';
+```
+
+**Se o usuário foi criado antes do schema**, o profile não existe ainda. Nesse caso rode o INSERT manual:
+
+```sql
+INSERT INTO public.profiles (id, email, role)
+SELECT id, email, 'admin'
+FROM auth.users
+WHERE email = 'seu@email.com';
 ```
 
 ### 5. Rode localmente
