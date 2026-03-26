@@ -31,6 +31,7 @@ export interface Database {
           name: string
           domain: string
           api_key: string
+          platform: 'supabase' | 'wordpress'
           created_at: string
         }
         Insert: {
@@ -39,11 +40,32 @@ export interface Database {
           name: string
           domain: string
           api_key?: string
+          platform?: 'supabase' | 'wordpress'
           created_at?: string
         }
         Update: {
           name?: string
           domain?: string
+          platform?: 'supabase' | 'wordpress'
+        }
+      }
+      sites_wordpress_credentials: {
+        Row: {
+          site_id: string
+          wp_url: string
+          wp_username: string
+          wp_application_password: string
+        }
+        Insert: {
+          site_id: string
+          wp_url: string
+          wp_username: string
+          wp_application_password: string
+        }
+        Update: {
+          wp_url?: string
+          wp_username?: string
+          wp_application_password?: string
         }
       }
       posts: {
@@ -95,3 +117,4 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Site = Database['public']['Tables']['sites']['Row']
 export type Post = Database['public']['Tables']['posts']['Row']
+export type SiteWordpressCredential = Database['public']['Tables']['sites_wordpress_credentials']['Row']

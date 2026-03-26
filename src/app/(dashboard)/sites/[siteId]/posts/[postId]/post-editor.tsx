@@ -139,8 +139,35 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     }
 
     setPublishing(true)
-    if (saveTimeout.current) clearTimeout(saveTimeout.current)
 
+    // Cancela auto-save pendente e força salvar antes de publicar
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current)
+      await autoSave(post, content)
+    }
+
+    if (site.platform === 'wordpress') {
+      // Publicação via WP REST API (server-side para proteger credenciais)
+      const res = await fetch('/api/publish-wordpress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id }),
+      })
+
+      setPublishing(false)
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(data.error ?? 'Erro ao publicar no WordPress')
+        return
+      }
+
+      setPost(p => ({ ...p, status: 'published' }))
+      toast.success('Post publicado no WordPress!')
+      return
+    }
+
+    // Publicação Supabase (lógica original)
     const { error } = await supabase
       .from('posts')
       .update({

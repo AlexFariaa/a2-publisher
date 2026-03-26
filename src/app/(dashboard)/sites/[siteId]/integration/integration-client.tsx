@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { Site } from '@/lib/supabase/types'
-import { ChevronLeft, Copy, Check, Globe, Code2, FileCode2 } from 'lucide-react'
+import { ChevronLeft, Copy, Check, Code2, FileCode2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
@@ -56,6 +56,8 @@ type Tab = 'nextjs' | 'html'
 export function IntegrationClient({ site, apiBase }: Props) {
   const [tab, setTab] = useState<Tab>('nextjs')
   const [apiKeyCopied, setApiKeyCopied] = useState(false)
+
+  const isWordPress = site.platform === 'wordpress'
 
   const apiUrl = `${apiBase}/api/posts?api_key=${site.api_key}`
   const apiUrlSlug = `${apiBase}/api/posts?api_key=${site.api_key}&slug=SLUG-DO-POST`
@@ -249,157 +251,229 @@ function nodeToHtml(node) {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Integração</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          Como conectar o A2 Publisher ao site <span className="font-medium text-neutral-700">{site.domain}</span>
+          Como o A2 Publisher se conecta ao site <span className="font-medium text-neutral-700">{site.domain}</span>
         </p>
       </div>
 
-      {/* API Key */}
-      <div className="border border-neutral-200 rounded-lg bg-white p-5 mb-8 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Sua API Key</p>
-          <Badge variant="secondary" className="text-xs">Não compartilhe publicamente</Badge>
-        </div>
-        <div className="flex items-center gap-3">
-          <code className="flex-1 text-sm bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 font-mono truncate text-neutral-700">
-            {site.api_key}
-          </code>
-          <button
-            onClick={copyApiKey}
-            className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 shrink-0"
-          >
-            {apiKeyCopied ? <Check size={14} /> : <Copy size={14} />}
-            Copiar
-          </button>
-        </div>
-        <p className="text-xs text-neutral-400">
-          Esta chave identifica seu site. Use-a nas chamadas de API abaixo.
-        </p>
-      </div>
-
-      {/* Como funciona */}
-      <div className="mb-8 p-5 bg-neutral-50 rounded-lg border border-neutral-200">
-        <h2 className="text-sm font-semibold mb-3">Como funciona</h2>
-        <div className="flex items-center gap-2 text-sm text-neutral-600">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">A2 Publisher</span>
-            <span className="text-neutral-300">→ salva posts no banco →</span>
-            <span className="font-medium">API</span>
-            <span className="text-neutral-300">→ seu site busca via fetch →</span>
-            <span className="font-medium">Aparece no site</span>
+      {isWordPress ? (
+        /* ── Conteúdo específico para sites WordPress ── */
+        <div className="space-y-8">
+          {/* Como funciona — WordPress */}
+          <div className="p-5 bg-neutral-50 rounded-lg border border-neutral-200">
+            <h2 className="text-sm font-semibold mb-3">Como funciona</h2>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
+              <span className="font-medium">A2 Publisher</span>
+              <span className="text-neutral-300">→ clique em Publicar →</span>
+              <span className="font-medium">WP REST API</span>
+              <span className="text-neutral-300">→ post aparece no WordPress</span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-3">
+              Quando você publica um post aqui, ele é enviado diretamente ao WordPress via API.
+              Nenhuma alteração de código é necessária no seu site.
+            </p>
           </div>
-        </div>
-        <p className="text-xs text-neutral-400 mt-3">
-          Quando você publica um post aqui, ele fica disponível na API imediatamente.
-          O site do cliente busca esses dados e exibe automaticamente — sem deploy, sem alteração de código.
-        </p>
-      </div>
 
-      {/* Tabs */}
-      <div className="mb-6">
-        <div className="flex gap-1 border-b border-neutral-200">
-          <button
-            onClick={() => setTab('nextjs')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'nextjs'
-                ? 'border-neutral-900 text-neutral-900'
-                : 'border-transparent text-neutral-400 hover:text-neutral-600'
-            }`}
-          >
-            <Code2 size={14} /> Next.js / React
-          </button>
-          <button
-            onClick={() => setTab('html')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'html'
-                ? 'border-neutral-900 text-neutral-900'
-                : 'border-transparent text-neutral-400 hover:text-neutral-600'
-            }`}
-          >
-            <FileCode2 size={14} /> HTML puro
-          </button>
-        </div>
-      </div>
+          {/* Guia: como gerar Application Password */}
+          <div>
+            <h2 className="text-base font-semibold mb-5">Como configurar a Application Password</h2>
+            <div className="space-y-6">
+              <Step number={1} title='Acesse o painel do WordPress'>
+                <p className="text-sm text-neutral-500">
+                  No admin do WordPress, vá em <strong>Usuários → Seu Perfil</strong> (ou o perfil do usuário que será usado para publicar).
+                </p>
+              </Step>
 
-      {/* Conteúdo das tabs */}
-      <div className="space-y-8">
-        {tab === 'nextjs' && (
-          <>
-            <Step number={1} title="Página de listagem dos posts (app/blog/page.tsx)">
-              <p className="text-sm text-neutral-500">
-                Crie a rota <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog</code> no seu projeto Next.js com o código abaixo.
-                O <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">revalidate: 60</code> faz o Next.js atualizar o cache a cada 60 segundos.
-              </p>
-              <CodeBlock code={nextjsListCode} />
-            </Step>
+              <Step number={2} title='Localize "Application Passwords"'>
+                <p className="text-sm text-neutral-500">
+                  Role a página até encontrar a seção <strong>Application Passwords</strong>. Ela aparece perto do final do perfil.
+                  Se não aparecer, verifique se o site usa HTTPS — essa seção é ocultada em conexões HTTP.
+                </p>
+              </Step>
 
-            <Step number={2} title="Página individual do post (app/blog/[slug]/page.tsx)">
-              <p className="text-sm text-neutral-500">
-                Crie a rota dinâmica <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog/[slug]</code> para exibir o conteúdo completo de cada post.
-                A função <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">renderContent</code> converte o JSON do editor em HTML.
-              </p>
-              <CodeBlock code={nextjsPostCode} />
-            </Step>
+              <Step number={3} title='Crie uma nova senha'>
+                <p className="text-sm text-neutral-500">
+                  No campo <em>New Application Password Name</em>, digite <strong>A2 Publisher</strong> (ou qualquer nome para identificar).
+                  Clique em <strong>Add New Application Password</strong>.
+                </p>
+              </Step>
 
-            <Step number={3} title="Pronto">
-              <p className="text-sm text-neutral-500">
-                Publique um post no A2 Publisher e acesse <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog</code> no seu site.
-                O post vai aparecer automaticamente, sem deploy.
-              </p>
-            </Step>
-          </>
-        )}
+              <Step number={4} title='Copie a senha gerada'>
+                <p className="text-sm text-neutral-500">
+                  O WordPress exibirá a senha <strong>uma única vez</strong>. Copie-a imediatamente.
+                  O formato é parecido com: <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded font-mono">xxxx xxxx xxxx xxxx xxxx xxxx</code>
+                </p>
+              </Step>
 
-        {tab === 'html' && (
-          <>
-            <Step number={1} title="Página de listagem (ex: blog.html)">
-              <p className="text-sm text-neutral-500">
-                Cole o código abaixo na página onde você quer listar os posts, antes do{' '}
-                <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">&lt;/body&gt;</code>.
-              </p>
-              <CodeBlock code={htmlListCode} language="html" />
-            </Step>
-
-            <Step number={2} title="Página individual do post (ex: post.html)">
-              <p className="text-sm text-neutral-500">
-                Crie uma página <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">post.html</code> e cole o código abaixo.
-                O slug do post vem pela URL: <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">post.html?slug=nome-do-post</code>.
-                Os links da listagem já devem apontar para esse formato.
-              </p>
-              <CodeBlock code={htmlPostCode} language="html" />
-            </Step>
-
-            <Step number={3} title="Pronto">
-              <p className="text-sm text-neutral-500">
-                Publique um post no A2 Publisher e acesse <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">blog.html</code> no seu site.
-                O post vai aparecer automaticamente.
-              </p>
-            </Step>
-          </>
-        )}
-      </div>
-
-      {/* Endpoints de referência */}
-      <div className="mt-10 border border-neutral-200 rounded-lg bg-white overflow-hidden">
-        <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Endpoints disponíveis</p>
-        </div>
-        <div className="divide-y divide-neutral-100">
-          <div className="px-5 py-3 flex items-start gap-4">
-            <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
-            <div>
-              <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...</code>
-              <p className="text-xs text-neutral-400 mt-0.5">Lista todos os posts publicados do site</p>
+              <Step number={5} title='Informe as credenciais no painel'>
+                <p className="text-sm text-neutral-500">
+                  As credenciais já foram inseridas ao criar este site no A2 Publisher (Admin → Sites → Novo Site).
+                  Se precisar atualizá-las, entre em contato com o administrador do sistema.
+                </p>
+              </Step>
             </div>
           </div>
-          <div className="px-5 py-3 flex items-start gap-4">
-            <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
+
+          {/* Plataforma badge */}
+          <div className="border border-neutral-200 rounded-lg bg-white p-5 flex items-center justify-between">
             <div>
-              <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...&slug=nome-do-post</code>
-              <p className="text-xs text-neutral-400 mt-0.5">Retorna um post específico pelo slug</p>
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Plataforma</p>
+              <p className="text-sm text-neutral-700 font-medium">WordPress (REST API)</p>
             </div>
+            <Badge variant="secondary" className="text-xs">Push direto</Badge>
           </div>
         </div>
-      </div>
+      ) : (
+        /* ── Conteúdo para sites Supabase (API pull) ── */
+        <>
+          {/* API Key */}
+          <div className="border border-neutral-200 rounded-lg bg-white p-5 mb-8 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Sua API Key</p>
+              <Badge variant="secondary" className="text-xs">Não compartilhe publicamente</Badge>
+            </div>
+            <div className="flex items-center gap-3">
+              <code className="flex-1 text-sm bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 font-mono truncate text-neutral-700">
+                {site.api_key}
+              </code>
+              <button
+                onClick={copyApiKey}
+                className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 shrink-0"
+              >
+                {apiKeyCopied ? <Check size={14} /> : <Copy size={14} />}
+                Copiar
+              </button>
+            </div>
+            <p className="text-xs text-neutral-400">
+              Esta chave identifica seu site. Use-a nas chamadas de API abaixo.
+            </p>
+          </div>
+
+          {/* Como funciona */}
+          <div className="mb-8 p-5 bg-neutral-50 rounded-lg border border-neutral-200">
+            <h2 className="text-sm font-semibold mb-3">Como funciona</h2>
+            <div className="flex items-center gap-2 text-sm text-neutral-600">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">A2 Publisher</span>
+                <span className="text-neutral-300">→ salva posts no banco →</span>
+                <span className="font-medium">API</span>
+                <span className="text-neutral-300">→ seu site busca via fetch →</span>
+                <span className="font-medium">Aparece no site</span>
+              </div>
+            </div>
+            <p className="text-xs text-neutral-400 mt-3">
+              Quando você publica um post aqui, ele fica disponível na API imediatamente.
+              O site do cliente busca esses dados e exibe automaticamente — sem deploy, sem alteração de código.
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <div className="mb-6">
+            <div className="flex gap-1 border-b border-neutral-200">
+              <button
+                onClick={() => setTab('nextjs')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tab === 'nextjs'
+                    ? 'border-neutral-900 text-neutral-900'
+                    : 'border-transparent text-neutral-400 hover:text-neutral-600'
+                }`}
+              >
+                <Code2 size={14} /> Next.js / React
+              </button>
+              <button
+                onClick={() => setTab('html')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tab === 'html'
+                    ? 'border-neutral-900 text-neutral-900'
+                    : 'border-transparent text-neutral-400 hover:text-neutral-600'
+                }`}
+              >
+                <FileCode2 size={14} /> HTML puro
+              </button>
+            </div>
+          </div>
+
+          {/* Conteúdo das tabs */}
+          <div className="space-y-8">
+            {tab === 'nextjs' && (
+              <>
+                <Step number={1} title="Página de listagem dos posts (app/blog/page.tsx)">
+                  <p className="text-sm text-neutral-500">
+                    Crie a rota <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog</code> no seu projeto Next.js com o código abaixo.
+                    O <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">revalidate: 60</code> faz o Next.js atualizar o cache a cada 60 segundos.
+                  </p>
+                  <CodeBlock code={nextjsListCode} />
+                </Step>
+
+                <Step number={2} title="Página individual do post (app/blog/[slug]/page.tsx)">
+                  <p className="text-sm text-neutral-500">
+                    Crie a rota dinâmica <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog/[slug]</code> para exibir o conteúdo completo de cada post.
+                    A função <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">renderContent</code> converte o JSON do editor em HTML.
+                  </p>
+                  <CodeBlock code={nextjsPostCode} />
+                </Step>
+
+                <Step number={3} title="Pronto">
+                  <p className="text-sm text-neutral-500">
+                    Publique um post no A2 Publisher e acesse <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">/blog</code> no seu site.
+                    O post vai aparecer automaticamente, sem deploy.
+                  </p>
+                </Step>
+              </>
+            )}
+
+            {tab === 'html' && (
+              <>
+                <Step number={1} title="Página de listagem (ex: blog.html)">
+                  <p className="text-sm text-neutral-500">
+                    Cole o código abaixo na página onde você quer listar os posts, antes do{' '}
+                    <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">&lt;/body&gt;</code>.
+                  </p>
+                  <CodeBlock code={htmlListCode} language="html" />
+                </Step>
+
+                <Step number={2} title="Página individual do post (ex: post.html)">
+                  <p className="text-sm text-neutral-500">
+                    Crie uma página <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">post.html</code> e cole o código abaixo.
+                    O slug do post vem pela URL: <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">post.html?slug=nome-do-post</code>.
+                    Os links da listagem já devem apontar para esse formato.
+                  </p>
+                  <CodeBlock code={htmlPostCode} language="html" />
+                </Step>
+
+                <Step number={3} title="Pronto">
+                  <p className="text-sm text-neutral-500">
+                    Publique um post no A2 Publisher e acesse <code className="text-xs bg-neutral-100 px-1.5 py-0.5 rounded">blog.html</code> no seu site.
+                    O post vai aparecer automaticamente.
+                  </p>
+                </Step>
+              </>
+            )}
+          </div>
+
+          {/* Endpoints de referência */}
+          <div className="mt-10 border border-neutral-200 rounded-lg bg-white overflow-hidden">
+            <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50">
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Endpoints disponíveis</p>
+            </div>
+            <div className="divide-y divide-neutral-100">
+              <div className="px-5 py-3 flex items-start gap-4">
+                <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
+                <div>
+                  <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...</code>
+                  <p className="text-xs text-neutral-400 mt-0.5">Lista todos os posts publicados do site</p>
+                </div>
+              </div>
+              <div className="px-5 py-3 flex items-start gap-4">
+                <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
+                <div>
+                  <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...&slug=nome-do-post</code>
+                  <p className="text-xs text-neutral-400 mt-0.5">Retorna um post específico pelo slug</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

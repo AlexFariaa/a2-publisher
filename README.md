@@ -23,36 +23,38 @@ CMS headless simplificado para agências que gerenciam múltiplos sites de clien
 O A2 Publisher é um painel de publicação visual onde clientes da agência escrevem e publicam posts nos próprios sites, sem precisar de suporte técnico. A agência (admin) cadastra os clientes, vincula os sites a eles, e os clientes acessam apenas o que é deles.
 
 O conteúdo fica salvo no Supabase e é consumido em tempo real pelo site do cliente via API.
+Para sites WordPress, os posts são enviados diretamente ao WP via REST API no momento da publicação — sem necessidade de código no site do cliente.
 
 ---
 
 ## Como funciona
 
 ```
-Admin cria cliente → Admin vincula site ao cliente
+Admin cria cliente → Admin vincula site ao cliente (Supabase ou WordPress)
         ↓
 Cliente faz login → Vê apenas seus sites
         ↓
 Cliente escreve post no editor → Salva como rascunho automaticamente
         ↓
-Cliente clica "Publicar" → Post fica disponível na API
-        ↓
-Site do cliente faz fetch na API → Exibe o post
+Cliente clica "Publicar"
+  ├── Site Supabase → Post fica disponível na API → site do cliente faz fetch → exibe o post
+  └── Site WordPress → Post é enviado diretamente ao WP via REST API → aparece no site
 ```
 
 ---
 
 ## Stack
 
-| Camada      | Tecnologia                        |
-|-------------|-----------------------------------|
-| Frontend    | Next.js 15 (App Router)           |
-| Estilização | Tailwind CSS + Shadcn/UI          |
-| Editor      | TipTap                            |
-| Banco       | Supabase (PostgreSQL)             |
-| Storage     | Supabase Storage                  |
-| Auth        | Supabase Auth                     |
-| Deploy      | Vercel / Netlify                  |
+| Camada           | Tecnologia                        |
+|------------------|-----------------------------------|
+| Frontend         | Next.js 15 (App Router)           |
+| Estilização      | Tailwind CSS + Shadcn/UI          |
+| Editor           | TipTap                            |
+| Banco            | Supabase (PostgreSQL)             |
+| Storage          | Supabase Storage                  |
+| Auth             | Supabase Auth                     |
+| Integração WP    | WordPress REST API                |
+| Deploy           | Vercel / Netlify                  |
 
 ---
 
@@ -136,14 +138,25 @@ Extende `auth.users` com papel e nome do usuário.
 ### `sites`
 Cada site pertence a um cliente.
 
-| Coluna     | Tipo      | Descrição                              |
-|------------|-----------|----------------------------------------|
-| id         | UUID (PK) |                                        |
-| user_id    | UUID (FK) | Referência ao profiles (dono do site)  |
-| name       | TEXT      | Nome do site (ex: "Clínica X")         |
-| domain     | TEXT      | Domínio (ex: "clinicax.com.br")        |
-| api_key    | TEXT      | Chave gerada automaticamente para a API|
-| created_at | TIMESTAMP |                                        |
+| Coluna     | Tipo      | Descrição                                           |
+|------------|-----------|-----------------------------------------------------|
+| id         | UUID (PK) |                                                     |
+| user_id    | UUID (FK) | Referência ao profiles (dono do site)               |
+| name       | TEXT      | Nome do site (ex: "Clínica X")                      |
+| domain     | TEXT      | Domínio (ex: "clinicax.com.br")                     |
+| api_key    | TEXT      | Chave gerada automaticamente para a API             |
+| platform   | TEXT      | `supabase` (padrão) ou `wordpress`                  |
+| created_at | TIMESTAMP |                                                     |
+
+### `sites_wordpress_credentials`
+Credenciais WordPress para sites com `platform = 'wordpress'`. Protegida por RLS — apenas admins têm acesso.
+
+| Coluna                   | Tipo      | Descrição                          |
+|--------------------------|-----------|------------------------------------|
+| site_id                  | UUID (PK) | FK → sites.id                      |
+| wp_url                   | TEXT      | URL do WordPress (sem barra final) |
+| wp_username              | TEXT      | Usuário WordPress                  |
+| wp_application_password  | TEXT      | Application Password gerada no WP  |
 
 ### `posts`
 
@@ -177,7 +190,34 @@ Cada site pertence a um cliente.
 
 ---
 
-## Integrando ao site do cliente
+## Integração com WordPress
+
+Para sites WordPress, o A2 Publisher envia os posts diretamente via **WordPress REST API** no momento da publicação. Nenhum código precisa ser adicionado ao site do cliente.
+
+### Pré-requisitos
+
+- WordPress com HTTPS ativo
+- Usuário com permissão de publicar posts
+
+### Configurar Application Password
+
+1. No WP Admin, acesse **Usuários → Seu Perfil**
+2. Role até **Application Passwords**
+3. Digite um nome (ex: `A2 Publisher`) e clique em **Add New Application Password**
+4. Copie a senha — ela só aparece **uma vez**
+
+### Cadastrar o site no painel
+
+Em **Admin → Sites → Novo Site**, selecione a plataforma **WordPress** e preencha:
+- URL do WordPress (ex: `https://meusite.com`)
+- Usuário
+- Application Password
+
+A partir daí, ao clicar em **Publicar** em qualquer post desse site, o conteúdo é enviado automaticamente ao WordPress com título, conteúdo HTML, slug, meta description e imagem de capa.
+
+---
+
+## Integrando ao site do cliente (Supabase)
 
 Para que os posts apareçam no site do cliente, são necessárias **duas páginas**:
 
@@ -420,15 +460,16 @@ src/
 │   │   ├── layout.tsx        # Layout com sidebar
 │   │   ├── admin/
 │   │   │   ├── clients/      # Gerenciar clientes
-│   │   │   └── sites/        # Gerenciar sites
+│   │   │   └── sites/        # Gerenciar sites (Supabase e WordPress)
 │   │   └── sites/[siteId]/
 │   │       ├── page.tsx      # Lista de posts do site
-│   │       ├── integration/  # Instruções de integração + api_key
+│   │       ├── integration/  # Instruções (Supabase: API key + código; WordPress: guia de App Password)
 │   │       └── posts/
 │   │           ├── new/      # Criar novo post
 │   │           └── [postId]/ # Editar post existente
 │   ├── api/
-│   │   ├── posts/            # GET /api/posts (pública)
+│   │   ├── posts/            # GET /api/posts (pública — Supabase)
+│   │   ├── publish-wordpress/ # POST — publicação server-side no WordPress
 │   │   └── admin/
 │   │       └── create-client/ # POST — cria usuário cliente
 │   └── login/                # Tela de login
@@ -437,5 +478,6 @@ src/
 │   ├── layout/               # Sidebar
 │   └── ui/                   # Shadcn/UI components
 └── lib/
-    └── supabase/             # Clients (server/browser) + types
+    ├── supabase/             # Clients (server/browser) + types
+    └── tiptap-to-html.ts     # Conversor TipTap JSON → HTML (usado no servidor para WP)
 ```

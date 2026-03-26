@@ -161,3 +161,27 @@ CREATE POLICY "images_owner_delete" ON storage.objects
 -- Substitua o email abaixo pelo seu email de admin
 -- ────────────────────────────────────────────────────────────
 -- UPDATE public.profiles SET role = 'admin' WHERE email = 'seu@email.com';
+
+-- ────────────────────────────────────────────────────────────
+-- 7. MIGRATION: Suporte a WordPress (Opção C)
+-- Execute no SQL Editor do Supabase caso já tenha rodado o schema anterior
+-- ────────────────────────────────────────────────────────────
+
+-- Adiciona coluna platform na tabela sites (default 'supabase' para sites existentes)
+ALTER TABLE public.sites
+  ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'supabase'
+  CHECK (platform IN ('supabase', 'wordpress'));
+
+-- Nova tabela: credenciais WordPress por site (1:1 com sites)
+CREATE TABLE IF NOT EXISTS public.sites_wordpress_credentials (
+  site_id                 UUID REFERENCES public.sites(id) ON DELETE CASCADE PRIMARY KEY,
+  wp_url                  TEXT NOT NULL,
+  wp_username             TEXT NOT NULL,
+  wp_application_password TEXT NOT NULL
+);
+
+ALTER TABLE public.sites_wordpress_credentials ENABLE ROW LEVEL SECURITY;
+
+-- Apenas admins podem ler/escrever credenciais WP (dados sensíveis)
+CREATE POLICY "wp_creds_admin_all" ON public.sites_wordpress_credentials
+  FOR ALL USING (public.is_admin());
