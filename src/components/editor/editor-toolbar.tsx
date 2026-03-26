@@ -1,12 +1,14 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
-  Link as LinkIcon, Image as ImageIcon, Minus, Quote
+  Link as LinkIcon, Image as ImageIcon, Minus, Quote, Loader2
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface ToolbarButtonProps {
   onClick: () => void
@@ -38,11 +40,34 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({ editor }: EditorToolbarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
   if (!editor) return null
 
-  function addImage() {
-    const url = window.prompt('URL da imagem:')
-    if (url) editor!.chain().focus().setImage({ src: url }).run()
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+
+    setUploading(true)
+    const supabase = createClient()
+    const ext = file.name.split('.').pop()
+    const path = `inline/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+    const { error } = await supabase.storage
+      .from('post-images')
+      .upload(path, file, { upsert: false })
+
+    if (error) {
+      setUploading(false)
+      return
+    }
+
+    const { data } = supabase.storage.from('post-images').getPublicUrl(path)
+    editor.chain().focus().setImage({ src: data.publicUrl }).run()
+    setUploading(false)
+    // Limpa o input para permitir re-upload do mesmo arquivo
+    e.target.value = ''
   }
 
   function setLink() {
@@ -118,9 +143,20 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Link">
         <LinkIcon size={15} />
       </ToolbarButton>
-      <ToolbarButton onClick={addImage} title="Inserir imagem por URL">
-        <ImageIcon size={15} />
+      <ToolbarButton
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        title="Inserir imagem"
+      >
+        {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
       </ToolbarButton>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageUpload}
+      />
       <ToolbarButton
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
         title="Divisor"
