@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Buscar credenciais WP (service role, pois RLS só permite admin)
-  const adminSupabase = createAdminClient()
+  const adminSupabase = await createAdminClient()
   const { data: creds, error: credsError } = await adminSupabase
     .from('sites_wordpress_credentials')
     .select('*')
