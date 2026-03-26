@@ -34,7 +34,7 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
     content: content ?? undefined,
     editorProps: {
       attributes: {
-        class: 'prose prose-neutral max-w-none focus:outline-none min-h-[400px] px-1',
+        class: 'tiptap-editor-content prose max-w-none focus:outline-none min-h-[400px] px-1',
       },
     },
     onUpdate({ editor }) {

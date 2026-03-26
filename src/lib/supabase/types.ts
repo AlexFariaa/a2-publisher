@@ -78,6 +78,7 @@ export interface Database {
           cover_image: string | null
           seo_description: string | null
           status: 'draft' | 'published'
+          wp_metadata: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at: string
           updated_at: string
         }
@@ -90,6 +91,7 @@ export interface Database {
           cover_image?: string | null
           seo_description?: string | null
           status?: 'draft' | 'published'
+          wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at?: string
           updated_at?: string
         }
@@ -100,6 +102,7 @@ export interface Database {
           cover_image?: string | null
           seo_description?: string | null
           status?: 'draft' | 'published'
+          wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           updated_at?: string
         }
       }
@@ -118,3 +121,10 @@ export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Site = Database['public']['Tables']['sites']['Row']
 export type Post = Database['public']['Tables']['posts']['Row']
 export type SiteWordpressCredential = Database['public']['Tables']['sites_wordpress_credentials']['Row']
+
+export interface WpTaxonomyItem {
+  id: number
+  name: string
+  slug: string
+  count: number
+}

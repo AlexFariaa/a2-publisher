@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Plus, FileText, ChevronLeft, Pencil, Plug } from 'lucide-react'
 import type { Site, Post } from '@/lib/supabase/types'
+import { DeletePostButton } from './delete-post-button'
 
 interface Props {
   params: Promise<{ siteId: string }>
@@ -95,6 +96,7 @@ export default async function SitePage({ params }: Props) {
                   {new Date(post.updated_at).toLocaleDateString('pt-BR')}
                 </span>
                 <Pencil size={13} className="text-neutral-300 group-hover:text-neutral-500 transition-colors" />
+                <DeletePostButton postId={post.id} postTitle={post.title} />
               </div>
             </Link>
           ))}

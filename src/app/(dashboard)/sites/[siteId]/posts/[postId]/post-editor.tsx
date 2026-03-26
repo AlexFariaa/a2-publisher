@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Post, Site } from '@/lib/supabase/types'
+import type { Post, Site, WpTaxonomyItem } from '@/lib/supabase/types'
 import { TipTapEditor } from '@/components/editor/tiptap-editor'
 import { TableOfContents } from '@/components/editor/table-of-contents'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { ChevronLeft, Upload, Eye, AlertCircle } from 'lucide-react'
+import { ChevronLeft, Upload, AlertCircle, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import type { JSONContent } from '@tiptap/react'
 
@@ -58,10 +58,51 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
   const [uploadingCover, setUploadingCover] = useState(false)
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // WordPress taxonomies state
+  const [wpCategories, setWpCategories] = useState<WpTaxonomyItem[]>([])
+  const [wpTags, setWpTags] = useState<WpTaxonomyItem[]>([])
+  const [loadingTaxonomies, setLoadingTaxonomies] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
+    initialPost.wp_metadata?.category_ids ?? []
+  )
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(
+    initialPost.wp_metadata?.tag_ids ?? []
+  )
+
   const warnings = getSeoWarnings(post, content)
 
+  // Carrega categorias e tags do WordPress
+  useEffect(() => {
+    if (site.platform !== 'wordpress') return
+
+    async function loadTaxonomies() {
+      setLoadingTaxonomies(true)
+      const [catRes, tagRes] = await Promise.all([
+        fetch(`/api/wordpress-taxonomies?siteId=${site.id}&type=categories`),
+        fetch(`/api/wordpress-taxonomies?siteId=${site.id}&type=tags`),
+      ])
+
+      if (catRes.ok) {
+        const { items } = await catRes.json() as { items: WpTaxonomyItem[] }
+        setWpCategories(items)
+      }
+      if (tagRes.ok) {
+        const { items } = await tagRes.json() as { items: WpTaxonomyItem[] }
+        setWpTags(items)
+      }
+      setLoadingTaxonomies(false)
+    }
+
+    loadTaxonomies()
+  }, [site.id, site.platform])
+
   // Auto-save com debounce
-  const autoSave = useCallback(async (data: Partial<Post>, contentData: JSONContent | null) => {
+  const autoSave = useCallback(async (
+    data: Partial<Post>,
+    contentData: JSONContent | null,
+    catIds: number[],
+    tagIds: number[],
+  ) => {
     setSaving(true)
     const { error } = await supabase
       .from('posts')
@@ -69,16 +110,24 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         ...data,
         content: contentData as Post['content'],
         status: 'draft',
+        wp_metadata: site.platform === 'wordpress'
+          ? { category_ids: catIds, tag_ids: tagIds }
+          : null,
       })
       .eq('id', post.id)
 
     setSaving(false)
     if (error) toast.error('Erro ao salvar rascunho')
-  }, [post.id, supabase])
+  }, [post.id, supabase, site.platform])
 
-  function scheduleAutoSave(data: Partial<Post>, contentData: JSONContent | null) {
+  function scheduleAutoSave(
+    data: Partial<Post>,
+    contentData: JSONContent | null,
+    catIds = selectedCategoryIds,
+    tagIds = selectedTagIds,
+  ) {
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
-    saveTimeout.current = setTimeout(() => autoSave(data, contentData), 1500)
+    saveTimeout.current = setTimeout(() => autoSave(data, contentData, catIds, tagIds), 1500)
   }
 
   function handleTitleChange(title: string) {
@@ -104,6 +153,22 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     const updated = { ...post, [field]: value }
     setPost(updated)
     scheduleAutoSave(updated, content)
+  }
+
+  function toggleCategory(id: number) {
+    const next = selectedCategoryIds.includes(id)
+      ? selectedCategoryIds.filter(c => c !== id)
+      : [...selectedCategoryIds, id]
+    setSelectedCategoryIds(next)
+    scheduleAutoSave(post, content, next, selectedTagIds)
+  }
+
+  function toggleTag(id: number) {
+    const next = selectedTagIds.includes(id)
+      ? selectedTagIds.filter(t => t !== id)
+      : [...selectedTagIds, id]
+    setSelectedTagIds(next)
+    scheduleAutoSave(post, content, selectedCategoryIds, next)
   }
 
   async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -132,6 +197,23 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     toast.success('Capa enviada!')
   }
 
+  const [deletingPost, setDeletingPost] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  async function handleDelete() {
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    setDeletingPost(true)
+    const { error } = await supabase.from('posts').delete().eq('id', post.id)
+    if (error) {
+      toast.error('Erro ao deletar post')
+      setDeletingPost(false)
+      setConfirmDelete(false)
+      return
+    }
+    toast.success('Post deletado')
+    router.push(`/sites/${site.id}`)
+  }
+
   async function handlePublish() {
     if (warnings.length > 0) {
       toast.error('Corrija os alertas de SEO antes de publicar')
@@ -143,7 +225,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     // Cancela auto-save pendente e força salvar antes de publicar
     if (saveTimeout.current) {
       clearTimeout(saveTimeout.current)
-      await autoSave(post, content)
+      await autoSave(post, content, selectedCategoryIds, selectedTagIds)
     }
 
     if (site.platform === 'wordpress') {
@@ -151,7 +233,11 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
       const res = await fetch('/api/publish-wordpress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: post.id }),
+        body: JSON.stringify({
+          postId: post.id,
+          categoryIds: selectedCategoryIds,
+          tagIds: selectedTagIds,
+        }),
       })
 
       setPublishing(false)
@@ -225,18 +311,36 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {post.status === 'published' ? (
-            <Button variant="outline" size="sm" onClick={handleUnpublish}>
-              Voltar para Rascunho
-            </Button>
+          {confirmDelete ? (
+            <>
+              <span className="text-xs text-neutral-500">Deletar este post?</span>
+              <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deletingPost}>
+                {deletingPost ? 'Deletando...' : 'Sim, deletar'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
+                Cancelar
+              </Button>
+            </>
           ) : (
-            <Button
-              size="sm"
-              onClick={handlePublish}
-              disabled={publishing}
-            >
-              {publishing ? 'Publicando...' : 'Publicar'}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmDelete(true)}
+                className="text-neutral-400 hover:text-red-500 hover:bg-red-50"
+              >
+                <Trash2 size={14} />
+              </Button>
+              {post.status === 'published' ? (
+                <Button variant="outline" size="sm" onClick={handleUnpublish}>
+                  Voltar para Rascunho
+                </Button>
+              ) : (
+                <Button size="sm" onClick={handlePublish} disabled={publishing}>
+                  {publishing ? 'Publicando...' : 'Publicar'}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -275,6 +379,72 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
             </div>
           )}
 
+          {/* WordPress: Categorias e Tags */}
+          {site.platform === 'wordpress' && (
+            <div className="border border-neutral-200 rounded-lg bg-white p-4 space-y-4">
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                WordPress
+              </p>
+
+              {loadingTaxonomies ? (
+                <p className="text-xs text-neutral-400">Carregando categorias e tags...</p>
+              ) : (
+                <>
+                  {/* Categorias */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Categorias</Label>
+                    {wpCategories.length === 0 ? (
+                      <p className="text-xs text-neutral-400">Nenhuma categoria encontrada</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {wpCategories.map(cat => (
+                          <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={selectedCategoryIds.includes(cat.id)}
+                              onChange={() => toggleCategory(cat.id)}
+                              className="rounded border-neutral-300 text-neutral-800 focus:ring-neutral-400"
+                            />
+                            <span className="text-xs text-neutral-700 group-hover:text-neutral-900">
+                              {cat.name}
+                            </span>
+                            <span className="text-xs text-neutral-400">({cat.count})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Tags */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Tags</Label>
+                    {wpTags.length === 0 ? (
+                      <p className="text-xs text-neutral-400">Nenhuma tag encontrada</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                        {wpTags.map(tag => (
+                          <button
+                            key={tag.id}
+                            onClick={() => toggleTag(tag.id)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                              selectedTagIds.includes(tag.id)
+                                ? 'bg-neutral-800 text-white border-neutral-800'
+                                : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
+                            }`}
+                          >
+                            {tag.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Capa */}
           <div className="border border-neutral-200 rounded-lg bg-white p-4 space-y-3">
             <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
@@ -300,6 +470,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                   <>
                     <Upload size={20} />
                     <span className="text-xs mt-1">Clique para enviar</span>
+                    <span className="text-xs mt-0.5 text-neutral-300">1200 × 630 px recomendado</span>
                   </>
                 )}
                 <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />

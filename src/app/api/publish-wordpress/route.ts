@@ -3,7 +3,11 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { tiptapJsonToHtml } from '@/lib/tiptap-to-html'
 
 export async function POST(request: NextRequest) {
-  const { postId } = await request.json()
+  const { postId, categoryIds, tagIds } = await request.json() as {
+    postId: string
+    categoryIds?: number[]
+    tagIds?: number[]
+  }
 
   if (!postId) {
     return NextResponse.json({ error: 'postId é obrigatório' }, { status: 400 })
@@ -66,10 +70,14 @@ export async function POST(request: NextRequest) {
     post.content as Parameters<typeof tiptapJsonToHtml>[0]
   )
 
-  // 6. Upload da imagem de capa para WP Media Library (se existir)
-  let featuredMediaId: number | null = null
+  // Ler wp_metadata existente
+  const wpMetadata = (post as { wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } }).wp_metadata ?? {}
+  const existingWpPostId = wpMetadata.wp_post_id ?? null
 
-  if (post.cover_image) {
+  // 6. Upload da imagem de capa para WP Media Library (se existir e ainda não tiver sido enviada)
+  let featuredMediaId: number | null = wpMetadata.wp_featured_media_id ?? null
+
+  if (post.cover_image && !featuredMediaId) {
     try {
       const imageRes = await fetch(post.cover_image)
       if (imageRes.ok) {
@@ -97,7 +105,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 7. Criar post no WordPress via REST API
+  // 7. Criar ou atualizar post no WordPress via REST API
+  // Usa categorias/tags do request; se não veio no body, tenta wp_metadata salvo no post
+  const resolvedCategoryIds = categoryIds ?? wpMetadata.category_ids ?? []
+  const resolvedTagIds = tagIds ?? wpMetadata.tag_ids ?? []
+
   const wpPostBody: Record<string, unknown> = {
     title: post.title,
     content: htmlContent,
@@ -106,8 +118,15 @@ export async function POST(request: NextRequest) {
     status: 'publish',
   }
   if (featuredMediaId) wpPostBody.featured_media = featuredMediaId
+  if (resolvedCategoryIds.length > 0) wpPostBody.categories = resolvedCategoryIds
+  if (resolvedTagIds.length > 0) wpPostBody.tags = resolvedTagIds
 
-  const wpRes = await fetch(`${wp_url}/wp-json/wp/v2/posts`, {
+  // Se já existe um post no WP, atualiza; caso contrário, cria novo
+  const wpEndpoint = existingWpPostId
+    ? `${wp_url}/wp-json/wp/v2/posts/${existingWpPostId}`
+    : `${wp_url}/wp-json/wp/v2/posts`
+
+  const wpRes = await fetch(wpEndpoint, {
     method: 'POST',
     headers: {
       Authorization: authHeader,
@@ -126,10 +145,19 @@ export async function POST(request: NextRequest) {
 
   const wpPost = await wpRes.json() as { id: number; link: string }
 
-  // 8. Atualizar status no Supabase
+  // 8. Atualizar status e wp_metadata no Supabase (salva o ID do post WP para futuras edições)
   await supabase
     .from('posts')
-    .update({ status: 'published' })
+    .update({
+      status: 'published',
+      wp_metadata: {
+        ...wpMetadata,
+        wp_post_id: wpPost.id,
+        ...(featuredMediaId ? { wp_featured_media_id: featuredMediaId } : {}),
+        category_ids: resolvedCategoryIds,
+        tag_ids: resolvedTagIds,
+      },
+    })
     .eq('id', postId)
 
   return NextResponse.json({ success: true, wp_post_id: wpPost.id, wp_link: wpPost.link })
