@@ -58,8 +58,10 @@ CREATE TABLE IF NOT EXISTS public.posts (
   slug            TEXT NOT NULL DEFAULT '',
   content         JSONB,
   cover_image     TEXT,
+  seo_title       TEXT,
   seo_description TEXT,
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  published_at    TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(site_id, slug)
@@ -185,3 +187,16 @@ ALTER TABLE public.sites_wordpress_credentials ENABLE ROW LEVEL SECURITY;
 -- Apenas admins podem ler/escrever credenciais WP (dados sensíveis)
 CREATE POLICY "wp_creds_admin_all" ON public.sites_wordpress_credentials
   FOR ALL USING (public.is_admin());
+
+-- ────────────────────────────────────────────────────────────
+-- 8. MIGRATION: Agendamento de posts
+-- Execute no SQL Editor do Supabase caso já tenha rodado o schema anterior
+-- ────────────────────────────────────────────────────────────
+
+-- Adiciona coluna published_at para controle de agendamento
+-- Posts com status='published' e published_at no futuro ficam ocultos até o horário chegar
+ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+
+ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS seo_title TEXT;

@@ -42,6 +42,9 @@ interface EditorToolbarProps {
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
+  const [altText, setAltText] = useState('')
+  const [imageTitle, setImageTitle] = useState('')
 
   if (!editor) return null
 
@@ -64,10 +67,30 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
     }
 
     const { data } = supabase.storage.from('post-images').getPublicUrl(path)
-    editor.chain().focus().setImage({ src: data.publicUrl }).run()
     setUploading(false)
+    setPendingImageUrl(data.publicUrl)
+    setAltText('')
+    setImageTitle('')
     // Limpa o input para permitir re-upload do mesmo arquivo
     e.target.value = ''
+  }
+
+  function handleInsertImage() {
+    if (!pendingImageUrl || !editor) return
+    editor.chain().focus().setImage({
+      src: pendingImageUrl,
+      alt: altText,
+      ...(imageTitle ? { title: imageTitle } : {}),
+    }).run()
+    setPendingImageUrl(null)
+    setAltText('')
+    setImageTitle('')
+  }
+
+  function handleCancelImage() {
+    setPendingImageUrl(null)
+    setAltText('')
+    setImageTitle('')
   }
 
   function setLink() {
@@ -81,7 +104,8 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   }
 
   return (
-    <div className="flex items-center gap-0.5 px-3 py-2 border-b border-neutral-200 flex-wrap">
+    <div className="flex flex-col border-b border-neutral-200">
+    <div className="flex items-center gap-0.5 px-3 py-2 flex-wrap">
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive('bold')}
@@ -163,6 +187,44 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       >
         <Minus size={15} />
       </ToolbarButton>
+    </div>
+
+    {pendingImageUrl && (
+      <div className="px-3 pb-3 pt-2 flex flex-col gap-2 bg-neutral-50 border-t border-neutral-100">
+        <p className="text-xs text-neutral-500 font-medium">Atributos da imagem</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Alt text (obrigatório para SEO)"
+            value={altText}
+            onChange={e => setAltText(e.target.value)}
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && handleInsertImage()}
+            className="flex-1 text-xs border border-neutral-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-400 bg-white"
+          />
+          <input
+            type="text"
+            placeholder="Title (opcional)"
+            value={imageTitle}
+            onChange={e => setImageTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleInsertImage()}
+            className="flex-1 text-xs border border-neutral-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-400 bg-white"
+          />
+          <button
+            onClick={handleInsertImage}
+            className="text-xs px-3 py-1.5 bg-neutral-900 text-white rounded hover:bg-neutral-700 shrink-0"
+          >
+            Inserir
+          </button>
+          <button
+            onClick={handleCancelImage}
+            className="text-xs px-2 py-1.5 text-neutral-400 hover:text-neutral-600 shrink-0"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )}
     </div>
   )
 }

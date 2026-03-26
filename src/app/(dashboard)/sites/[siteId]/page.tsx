@@ -1,11 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, FileText, ChevronLeft, Pencil, Plug } from 'lucide-react'
+import { Plus, ChevronLeft, Plug } from 'lucide-react'
 import type { Site, Post } from '@/lib/supabase/types'
-import { DeletePostButton } from './delete-post-button'
+import { PostsList } from './posts-list'
 
 interface Props {
   params: Promise<{ siteId: string }>
@@ -18,7 +17,7 @@ export default async function SitePage({ params }: Props) {
   const [{ data: siteData }, { data: postsData }] = await Promise.all([
     supabase.from('sites').select('*').eq('id', siteId).single(),
     supabase.from('posts')
-      .select('id, title, slug, status, created_at, updated_at')
+      .select('id, title, slug, status, published_at, created_at, updated_at')
       .eq('site_id', siteId)
       .order('updated_at', { ascending: false }),
   ])
@@ -26,7 +25,7 @@ export default async function SitePage({ params }: Props) {
   const site = siteData as Site | null
   if (!site) notFound()
 
-  const posts = (postsData ?? []) as Pick<Post, 'id' | 'title' | 'slug' | 'status' | 'created_at' | 'updated_at'>[]
+  const posts = (postsData ?? []) as Pick<Post, 'id' | 'title' | 'slug' | 'status' | 'published_at' | 'created_at' | 'updated_at'>[]
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-10">
@@ -61,47 +60,7 @@ export default async function SitePage({ params }: Props) {
       </div>
 
       {/* Lista de posts */}
-      {posts.length === 0 ? (
-        <div className="text-center py-20 text-neutral-400">
-          <FileText size={40} className="mx-auto mb-4 opacity-30" />
-          <p className="text-sm">Nenhum post criado ainda.</p>
-          <p className="text-sm mt-1">
-            <Link href={`/sites/${siteId}/posts/new`} className="underline">
-              Criar primeiro post
-            </Link>
-          </p>
-        </div>
-      ) : (
-        <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg overflow-hidden bg-white">
-          {posts.map(post => (
-            <Link
-              key={post.id}
-              href={`/sites/${siteId}/posts/${post.id}`}
-              className="flex items-center justify-between px-5 py-4 hover:bg-neutral-50 transition-colors group"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {post.title || <span className="text-neutral-400 italic">Sem título</span>}
-                </p>
-                <p className="text-xs text-neutral-400 mt-0.5">/{post.slug || '—'}</p>
-              </div>
-              <div className="flex items-center gap-3 ml-4 shrink-0">
-                <Badge
-                  variant={post.status === 'published' ? 'default' : 'secondary'}
-                  className="text-xs"
-                >
-                  {post.status === 'published' ? 'Publicado' : 'Rascunho'}
-                </Badge>
-                <span className="text-xs text-neutral-400">
-                  {new Date(post.updated_at).toLocaleDateString('pt-BR')}
-                </span>
-                <Pencil size={13} className="text-neutral-300 group-hover:text-neutral-500 transition-colors" />
-                <DeletePostButton postId={post.id} postTitle={post.title} />
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+      <PostsList posts={posts} siteId={siteId} />
     </div>
   )
 }

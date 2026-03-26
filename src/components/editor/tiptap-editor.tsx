@@ -11,9 +11,10 @@ import { EditorToolbar } from './editor-toolbar'
 interface TipTapEditorProps {
   content: object | null
   onChange: (content: object) => void
+  editable?: boolean
 }
 
-export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
+export function TipTapEditor({ content, onChange, editable = true }: TipTapEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -48,6 +49,13 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
       editor.commands.setContent(content)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Atualiza editabilidade quando o prop muda
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) {
+      editor.setEditable(editable)
+    }
+  }, [editor, editable])
 
   return (
     <div className="border border-neutral-200 rounded-lg bg-white overflow-hidden">

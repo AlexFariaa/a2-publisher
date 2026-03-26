@@ -3,10 +3,11 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { tiptapJsonToHtml } from '@/lib/tiptap-to-html'
 
 export async function POST(request: NextRequest) {
-  const { postId, categoryIds, tagIds } = await request.json() as {
+  const { postId, categoryIds, tagIds, scheduledAt } = await request.json() as {
     postId: string
     categoryIds?: number[]
     tagIds?: number[]
+    scheduledAt?: string // ISO UTC string
   }
 
   if (!postId) {
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest) {
         if (mediaRes.ok) {
           const mediaData = await mediaRes.json() as { id: number }
           featuredMediaId = mediaData.id
+
+          // Atualiza title e alt_text do arquivo no Media Library
+          const mediaTitle = (post as { seo_title?: string | null }).seo_title || post.title
+          await fetch(`${wp_url}/wp-json/wp/v2/media/${mediaData.id}`, {
+            method: 'POST',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: mediaTitle, alt_text: post.title }),
+          }).catch(() => { /* não bloqueia publicação se falhar */ })
         }
       }
     } catch {
@@ -110,12 +119,22 @@ export async function POST(request: NextRequest) {
   const resolvedCategoryIds = categoryIds ?? wpMetadata.category_ids ?? []
   const resolvedTagIds = tagIds ?? wpMetadata.tag_ids ?? []
 
+  const isScheduled = scheduledAt && new Date(scheduledAt) > new Date()
+  // WordPress date_gmt espera formato YYYY-MM-DDTHH:MM:SS em UTC
+  const wpDateGmt = scheduledAt
+    ? new Date(scheduledAt).toISOString().replace(/\.\d{3}Z$/, '')
+    : undefined
+
+  const seoTitle = (post as { seo_title?: string | null }).seo_title || post.title
+  const seoDescription = post.seo_description ?? ''
+
   const wpPostBody: Record<string, unknown> = {
     title: post.title,
     content: htmlContent,
     slug: post.slug,
-    excerpt: post.seo_description ?? '',
-    status: 'publish',
+    excerpt: seoDescription,
+    status: isScheduled ? 'future' : 'publish',
+    ...(wpDateGmt ? { date_gmt: wpDateGmt } : {}),
   }
   if (featuredMediaId) wpPostBody.featured_media = featuredMediaId
   if (resolvedCategoryIds.length > 0) wpPostBody.categories = resolvedCategoryIds
@@ -145,11 +164,20 @@ export async function POST(request: NextRequest) {
 
   const wpPost = await wpRes.json() as { id: number; link: string }
 
-  // 8. Atualizar status e wp_metadata no Supabase (salva o ID do post WP para futuras edições)
+  // 8. Atualizar Yoast SEO meta via endpoint customizado (requer Code Snippets no WP)
+  // Ver: POST /wp-json/a2publisher/v1/seo/{id}
+  await fetch(`${wp_url}/wp-json/a2publisher/v1/seo/${wpPost.id}`, {
+    method: 'POST',
+    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seo_title: seoTitle, seo_description: seoDescription }),
+  }).catch(() => { /* não bloqueia publicação se snippet não instalado */ })
+
+  // 9. Atualizar status, published_at e wp_metadata no Supabase
   await supabase
     .from('posts')
     .update({
       status: 'published',
+      published_at: scheduledAt ?? new Date().toISOString(),
       wp_metadata: {
         ...wpMetadata,
         wp_post_id: wpPost.id,

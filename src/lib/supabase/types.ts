@@ -76,8 +76,10 @@ export interface Database {
           slug: string
           content: Json | null
           cover_image: string | null
+          seo_title: string | null
           seo_description: string | null
           status: 'draft' | 'published'
+          published_at: string | null
           wp_metadata: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at: string
           updated_at: string
@@ -89,8 +91,10 @@ export interface Database {
           slug?: string
           content?: Json | null
           cover_image?: string | null
+          seo_title?: string | null
           seo_description?: string | null
           status?: 'draft' | 'published'
+          published_at?: string | null
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at?: string
           updated_at?: string
@@ -100,8 +104,10 @@ export interface Database {
           slug?: string
           content?: Json | null
           cover_image?: string | null
+          seo_title?: string | null
           seo_description?: string | null
           status?: 'draft' | 'published'
+          published_at?: string | null
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           updated_at?: string
         }

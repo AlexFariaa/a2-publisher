@@ -63,7 +63,8 @@ function nodeToHtml(node: TipTapNode): string {
     case 'image': {
       const src = node.attrs?.src ?? ''
       const alt = node.attrs?.alt ?? ''
-      return `<img src="${src}" alt="${alt}" />`
+      const title = node.attrs?.title
+      return `<img src="${src}" alt="${alt}"${title ? ` title="${String(title)}"` : ''} />`
     }
     case 'codeBlock':
       return `<pre><code>${children}</code></pre>`

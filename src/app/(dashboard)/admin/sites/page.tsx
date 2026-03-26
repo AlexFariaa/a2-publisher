@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
-import { Globe } from 'lucide-react'
 import { NewSiteDialog } from './new-site-dialog'
+import { SitesList } from './sites-list'
 import type { Site, Profile, Post } from '@/lib/supabase/types'
 
 export default async function AdminSitesPage() {
@@ -41,34 +40,16 @@ export default async function AdminSitesPage() {
         <NewSiteDialog clients={clients} />
       </div>
 
-      {sites.length === 0 ? (
-        <div className="text-center py-20 text-neutral-400">
-          <Globe size={40} className="mx-auto mb-4 opacity-30" />
-          <p className="text-sm">Nenhum site cadastrado ainda.</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg overflow-hidden bg-white">
-          {sites.map(site => {
-            const owner = clientById[site.user_id]
-            return (
-              <div key={site.id} className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p className="text-sm font-medium">{site.name}</p>
-                  <p className="text-xs text-neutral-400 mt-0.5">{site.domain}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-neutral-500">
-                    {owner?.full_name ?? owner?.email ?? '—'}
-                  </span>
-                  <Badge variant="secondary" className="text-xs">
-                    {postCountBySite[site.id] ?? 0} posts
-                  </Badge>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <SitesList sites={sites.map(site => {
+        const owner = clientById[site.user_id]
+        return {
+          id: site.id,
+          name: site.name,
+          domain: site.domain,
+          postCount: postCountBySite[site.id] ?? 0,
+          ownerName: owner?.full_name ?? owner?.email ?? '—',
+        }
+      })} />
     </div>
   )
 }

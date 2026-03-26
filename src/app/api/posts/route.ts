@@ -23,14 +23,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'api_key inválido' }, { status: 401 })
   }
 
+  const now = new Date().toISOString()
+
   // Busca post único por slug
   if (slug) {
     const { data: post } = await supabase
       .from('posts')
-      .select('id, title, slug, content, cover_image, seo_description, created_at, updated_at')
+      .select('id, title, slug, content, cover_image, seo_title, seo_description, created_at, updated_at, published_at')
       .eq('site_id', site.id)
       .eq('slug', slug)
       .eq('status', 'published')
+      .lte('published_at', now)
       .single()
 
     if (!post) {
@@ -42,13 +45,14 @@ export async function GET(request: Request) {
     })
   }
 
-  // Busca todos os posts publicados
+  // Busca todos os posts publicados (e cuja data de publicação já chegou)
   const { data: posts } = await supabase
     .from('posts')
-    .select('id, title, slug, cover_image, seo_description, created_at, updated_at')
+    .select('id, title, slug, cover_image, seo_title, seo_description, created_at, updated_at, published_at')
     .eq('site_id', site.id)
     .eq('status', 'published')
-    .order('created_at', { ascending: false })
+    .lte('published_at', now)
+    .order('published_at', { ascending: false })
 
   return NextResponse.json({ posts: posts ?? [] }, {
     headers: { 'Access-Control-Allow-Origin': '*' },

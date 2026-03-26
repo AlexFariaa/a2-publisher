@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { ChevronLeft, Upload, AlertCircle, Trash2 } from 'lucide-react'
+import { ChevronLeft, Upload, AlertCircle, Trash2, Calendar, Lock } from 'lucide-react'
 import Link from 'next/link'
 import type { JSONContent } from '@tiptap/react'
 
@@ -31,9 +31,22 @@ function generateSlug(title: string): string {
     .replace(/\s+/g, '-')
 }
 
+function toLocalDatetimeInput(isoString: string | null): string {
+  const date = isoString ? new Date(isoString) : new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function formatScheduledDate(isoString: string): string {
+  const date = new Date(isoString)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} às ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function getSeoWarnings(post: Partial<Post>, content: JSONContent | null): string[] {
   const warnings: string[] = []
-  if (!post.title?.trim()) warnings.push('Título (H1) obrigatório')
+  if (!post.title?.trim()) warnings.push('H1 obrigatório')
+  if (!post.seo_title?.trim()) warnings.push('Title (SEO) obrigatório')
   if (!post.cover_image) warnings.push('Foto de capa ausente')
   if (!post.seo_description?.trim()) warnings.push('Meta description ausente')
   if (!post.slug?.trim()) warnings.push('Slug (URL) obrigatório')
@@ -55,6 +68,9 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [slugEdited, setSlugEdited] = useState(!!initialPost.slug)
+  const [scheduledAt, setScheduledAt] = useState<string>(
+    toLocalDatetimeInput(initialPost.published_at ?? null)
+  )
   const [uploadingCover, setUploadingCover] = useState(false)
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -70,6 +86,8 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
   )
 
   const warnings = getSeoWarnings(post, content)
+  const isScheduled = new Date(scheduledAt) > new Date()
+  const isLocked = post.status === 'published'
 
   // Carrega categorias e tags do WordPress
   useEffect(() => {
@@ -111,7 +129,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         content: contentData as Post['content'],
         status: 'draft',
         wp_metadata: site.platform === 'wordpress'
-          ? { category_ids: catIds, tag_ids: tagIds }
+          ? { ...(data.wp_metadata ?? {}), category_ids: catIds, tag_ids: tagIds }
           : null,
       })
       .eq('id', post.id)
@@ -126,6 +144,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     catIds = selectedCategoryIds,
     tagIds = selectedTagIds,
   ) {
+    if (isLocked) return
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => autoSave(data, contentData, catIds, tagIds), 1500)
   }
@@ -230,6 +249,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
 
     if (site.platform === 'wordpress') {
       // Publicação via WP REST API (server-side para proteger credenciais)
+      const publishedAt = new Date(scheduledAt).toISOString()
       const res = await fetch('/api/publish-wordpress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,6 +257,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
           postId: post.id,
           categoryIds: selectedCategoryIds,
           tagIds: selectedTagIds,
+          scheduledAt: publishedAt,
         }),
       })
 
@@ -248,12 +269,13 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         return
       }
 
-      setPost(p => ({ ...p, status: 'published' }))
-      toast.success('Post publicado no WordPress!')
+      setPost(p => ({ ...p, status: 'published', published_at: publishedAt }))
+      toast.success(isScheduled ? 'Post agendado no WordPress!' : 'Post publicado no WordPress!')
       return
     }
 
     // Publicação Supabase (lógica original)
+    const publishedAt = new Date(scheduledAt).toISOString()
     const { error } = await supabase
       .from('posts')
       .update({
@@ -261,8 +283,10 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         slug: post.slug,
         content: content as Post['content'],
         cover_image: post.cover_image,
+        seo_title: post.seo_title,
         seo_description: post.seo_description,
         status: 'published',
+        published_at: publishedAt,
       })
       .eq('id', post.id)
 
@@ -273,8 +297,8 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
       return
     }
 
-    setPost(p => ({ ...p, status: 'published' }))
-    toast.success('Post publicado com sucesso!')
+    setPost(p => ({ ...p, status: 'published', published_at: publishedAt }))
+    toast.success(isScheduled ? 'Post agendado com sucesso!' : 'Post publicado com sucesso!')
   }
 
   async function handleUnpublish() {
@@ -285,6 +309,7 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
 
     if (!error) {
       setPost(p => ({ ...p, status: 'draft' }))
+      // Mantém scheduledAt e published_at — data de agendamento é preservada
       toast.success('Post voltou para rascunho')
     }
   }
@@ -301,8 +326,14 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
             <ChevronLeft size={14} /> {site.name}
           </Link>
           <div className="flex items-center gap-2">
-            <Badge variant={post.status === 'published' ? 'default' : 'secondary'}>
-              {post.status === 'published' ? 'Publicado' : 'Rascunho'}
+            <Badge variant={
+              post.status === 'published' && post.published_at && new Date(post.published_at) > new Date()
+                ? 'outline'
+                : post.status === 'published' ? 'default' : 'secondary'
+            }>
+              {post.status === 'published' && post.published_at && new Date(post.published_at) > new Date()
+                ? `Agendado · ${formatScheduledDate(post.published_at)}`
+                : post.status === 'published' ? 'Publicado' : 'Rascunho'}
             </Badge>
             {saving && (
               <span className="text-xs text-neutral-400">Salvando...</span>
@@ -337,7 +368,9 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                 </Button>
               ) : (
                 <Button size="sm" onClick={handlePublish} disabled={publishing}>
-                  {publishing ? 'Publicando...' : 'Publicar'}
+                  {publishing
+                    ? (isScheduled ? 'Agendando...' : 'Publicando...')
+                    : (isScheduled ? 'Agendar Publicação' : 'Publicar Agora')}
                 </Button>
               )}
             </>
@@ -345,22 +378,31 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
         </div>
       </div>
 
+      {isLocked && (
+        <div className="mb-6 flex items-center gap-2 text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-4 py-2.5">
+          <Lock size={12} className="shrink-0" />
+          Este post está publicado. Clique em &quot;Voltar para Rascunho&quot; para liberar edições.
+        </div>
+      )}
+
       <div className="grid grid-cols-[1fr_280px] gap-6">
         {/* Coluna principal */}
         <div className="space-y-5">
-          {/* Título */}
+          {/* Título H1 */}
           <div>
+            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">H1</span>
             <input
               type="text"
               placeholder="Título do post"
               value={post.title}
+              readOnly={isLocked}
               onChange={e => handleTitleChange(e.target.value)}
-              className="w-full text-3xl font-bold tracking-tight border-none outline-none bg-transparent placeholder:text-neutral-300 resize-none"
+              className={`w-full text-3xl font-bold tracking-tight border-none outline-none bg-transparent placeholder:text-neutral-300 resize-none mt-1 ${isLocked ? 'cursor-default select-none' : ''}`}
             />
           </div>
 
           {/* Editor */}
-          <TipTapEditor content={content} onChange={handleContentChange} />
+          <TipTapEditor content={content} onChange={handleContentChange} editable={!isLocked} />
         </div>
 
         {/* Sidebar */}
@@ -398,11 +440,12 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                     ) : (
                       <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                         {wpCategories.map(cat => (
-                          <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
+                          <label key={cat.id} className={`flex items-center gap-2 group ${isLocked ? 'cursor-default' : 'cursor-pointer'}`}>
                             <input
                               type="checkbox"
                               checked={selectedCategoryIds.includes(cat.id)}
                               onChange={() => toggleCategory(cat.id)}
+                              disabled={isLocked}
                               className="rounded border-neutral-300 text-neutral-800 focus:ring-neutral-400"
                             />
                             <span className="text-xs text-neutral-700 group-hover:text-neutral-900">
@@ -428,11 +471,12 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                           <button
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
+                            disabled={isLocked}
                             className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                               selectedTagIds.includes(tag.id)
                                 ? 'bg-neutral-800 text-white border-neutral-800'
                                 : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
-                            }`}
+                            } ${isLocked ? 'opacity-60 cursor-default' : ''}`}
                           >
                             {tag.name}
                           </button>
@@ -457,13 +501,15 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                   alt="Capa"
                   className="w-full h-32 object-cover rounded-md"
                 />
-                <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600 flex items-center gap-1">
-                  <Upload size={12} /> Trocar imagem
-                  <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
-                </label>
+                {!isLocked && (
+                  <label className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-600 flex items-center gap-1">
+                    <Upload size={12} /> Trocar imagem
+                    <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                  </label>
+                )}
               </div>
             ) : (
-              <label className="cursor-pointer flex flex-col items-center justify-center h-24 border-2 border-dashed border-neutral-200 rounded-md hover:border-neutral-400 transition-colors text-neutral-400">
+              <label className={`flex flex-col items-center justify-center h-24 border-2 border-dashed border-neutral-200 rounded-md transition-colors text-neutral-400 ${isLocked ? 'cursor-default opacity-50' : 'cursor-pointer hover:border-neutral-400'}`}>
                 {uploadingCover ? (
                   <span className="text-xs">Enviando...</span>
                 ) : (
@@ -473,14 +519,54 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                     <span className="text-xs mt-0.5 text-neutral-300">1200 × 630 px recomendado</span>
                   </>
                 )}
-                <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                {!isLocked && <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />}
               </label>
             )}
           </div>
 
+          {/* Publicação */}
+          {post.status !== 'published' && (
+            <div className="border border-neutral-200 rounded-lg bg-white p-4 space-y-3">
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar size={12} /> Publicação
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data e hora</Label>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={e => setScheduledAt(e.target.value)}
+                  className="w-full text-xs border border-neutral-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                />
+                {isScheduled ? (
+                  <p className="text-xs text-blue-600">
+                    Será publicado em {formatScheduledDate(new Date(scheduledAt).toISOString())}
+                  </p>
+                ) : (
+                  <p className="text-xs text-neutral-400">Publicação imediata</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* SEO */}
           <div className="border border-neutral-200 rounded-lg bg-white p-4 space-y-4">
             <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">SEO</p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Title</Label>
+              <Input
+                value={post.seo_title ?? ''}
+                onChange={e => handleFieldChange('seo_title', e.target.value)}
+                readOnly={isLocked}
+                className={`text-xs h-8 ${isLocked ? 'cursor-default' : ''}`}
+                placeholder="Título para o Google"
+                maxLength={70}
+              />
+              <p className="text-xs text-neutral-400 text-right">
+                {(post.seo_title ?? '').length}/70
+              </p>
+            </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Slug (URL)</Label>
@@ -489,7 +575,8 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                 <Input
                   value={post.slug}
                   onChange={e => handleSlugChange(e.target.value)}
-                  className="text-xs h-8"
+                  readOnly={isLocked}
+                  className={`text-xs h-8 ${isLocked ? 'cursor-default' : ''}`}
                   placeholder="url-do-post"
                 />
               </div>
@@ -500,10 +587,11 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
               <textarea
                 value={post.seo_description ?? ''}
                 onChange={e => handleFieldChange('seo_description', e.target.value)}
+                readOnly={isLocked}
                 placeholder="Descrição para mecanismos de busca..."
                 rows={3}
                 maxLength={160}
-                className="w-full text-xs border border-neutral-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className={`w-full text-xs border border-neutral-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-neutral-400 ${isLocked ? 'cursor-default' : ''}`}
               />
               <p className="text-xs text-neutral-400 text-right">
                 {(post.seo_description ?? '').length}/160
