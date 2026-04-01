@@ -66,10 +66,11 @@ export async function POST(request: NextRequest) {
   const { wp_url, wp_username, wp_application_password } = creds
   const authHeader = 'Basic ' + Buffer.from(`${wp_username}:${wp_application_password}`).toString('base64')
 
-  // 5. Converter TipTap JSON → HTML
-  const htmlContent = tiptapJsonToHtml(
-    post.content as Parameters<typeof tiptapJsonToHtml>[0]
-  )
+  // 5. Converter conteúdo para HTML
+  // Posts gerados pelo pipeline têm raw_html em vez de TipTap JSON
+  const htmlContent = (post.source === 'generated' && post.raw_html)
+    ? post.raw_html
+    : tiptapJsonToHtml(post.content as Parameters<typeof tiptapJsonToHtml>[0])
 
   // Ler wp_metadata existente
   const wpMetadata = (post as { wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } }).wp_metadata ?? {}

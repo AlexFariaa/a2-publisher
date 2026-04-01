@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { ChevronLeft, Upload, AlertCircle, Trash2, Calendar, Lock } from 'lucide-react'
+import { ChevronLeft, Upload, AlertCircle, Trash2, Calendar, Lock, Bot } from 'lucide-react'
 import Link from 'next/link'
 import type { JSONContent } from '@tiptap/react'
 
@@ -88,6 +88,9 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
   const warnings = getSeoWarnings(post, content)
   const isScheduled = new Date(scheduledAt) > new Date()
   const isLocked = post.status === 'published'
+  const isGenerated = post.source === 'generated' && !!post.raw_html
+  const isWordPress = site.platform === 'wordpress'
+  const githubEnabled = !isWordPress && !!site.blog_framework && site.blog_framework !== 'none'
 
   // Carrega categorias e tags do WordPress
   useEffect(() => {
@@ -314,6 +317,26 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
     }
   }
 
+  async function handleGitHubPush() {
+    setPublishing(true)
+    try {
+      const res = await fetch('/api/github/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as { error?: string }))
+        toast.error(data.error ?? 'Erro ao publicar no GitHub')
+        return
+      }
+      toast.success('Post publicado no GitHub! Netlify está fazendo o deploy.')
+      setPost(p => ({ ...p, status: 'published' as const, published_at: new Date().toISOString() }))
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-8 py-8">
       {/* Header */}
@@ -335,6 +358,11 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                 ? `Agendado · ${formatScheduledDate(post.published_at)}`
                 : post.status === 'published' ? 'Publicado' : 'Rascunho'}
             </Badge>
+            {isGenerated && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <Bot size={10} /> Gerado por IA
+              </Badge>
+            )}
             {saving && (
               <span className="text-xs text-neutral-400">Salvando...</span>
             )}
@@ -365,6 +393,10 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
               {post.status === 'published' ? (
                 <Button variant="outline" size="sm" onClick={handleUnpublish}>
                   Voltar para Rascunho
+                </Button>
+              ) : isGenerated && githubEnabled ? (
+                <Button size="sm" onClick={handleGitHubPush} disabled={publishing}>
+                  {publishing ? 'Publicando...' : 'Publicar no GitHub'}
                 </Button>
               ) : (
                 <Button size="sm" onClick={handlePublish} disabled={publishing}>
@@ -401,8 +433,17 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
             />
           </div>
 
-          {/* Editor */}
-          <TipTapEditor content={content} onChange={handleContentChange} editable={!isLocked} />
+          {/* Editor ou HTML preview */}
+          {isGenerated ? (
+            <div className="border border-neutral-200 rounded-lg bg-white p-6 overflow-auto min-h-[400px]">
+              <div
+                className="prose prose-neutral max-w-none text-sm"
+                dangerouslySetInnerHTML={{ __html: post.raw_html! }}
+              />
+            </div>
+          ) : (
+            <TipTapEditor content={content} onChange={handleContentChange} editable={!isLocked} />
+          )}
         </div>
 
         {/* Sidebar */}

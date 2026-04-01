@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { Site } from '@/lib/supabase/types'
-import { ChevronLeft, Copy, Check, Code2, FileCode2 } from 'lucide-react'
+import { ChevronLeft, Copy, Check, Code2, FileCode2, Bot } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { saveGithubConfig } from './actions'
 
 interface Props {
   site: Site
@@ -51,11 +55,47 @@ function Step({ number, title, children }: { number: number; title: string; chil
   )
 }
 
-type Tab = 'nextjs' | 'html'
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    toast.success(`${label} copiado!`)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-neutral-500">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 text-xs bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 font-mono truncate text-neutral-700">
+          {value}
+        </code>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-800 shrink-0"
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          Copiar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type Tab = 'nextjs' | 'html' | 'generator'
 
 export function IntegrationClient({ site, apiBase }: Props) {
   const [tab, setTab] = useState<Tab>('nextjs')
   const [apiKeyCopied, setApiKeyCopied] = useState(false)
+
+  // Estado dos campos de configuração GitHub
+  const [githubRepo, setGithubRepo] = useState(site.github_repo ?? '')
+  const [githubBranch, setGithubBranch] = useState(site.github_branch ?? 'main')
+  const [blogOutputPath, setBlogOutputPath] = useState(site.blog_output_path ?? '')
+  const [blogFramework, setBlogFramework] = useState<Site['blog_framework']>(site.blog_framework ?? null)
+  const [isPending, startTransition] = useTransition()
 
   const isWordPress = site.platform === 'wordpress'
 
@@ -68,6 +108,28 @@ export function IntegrationClient({ site, apiBase }: Props) {
     toast.success('API Key copiada!')
     setTimeout(() => setApiKeyCopied(false), 2000)
   }
+
+  function handleSaveGithubConfig() {
+    startTransition(async () => {
+      try {
+        await saveGithubConfig(site.id, {
+          github_repo: githubRepo.trim() || null,
+          github_branch: githubBranch.trim() || 'main',
+          blog_output_path: blogOutputPath.trim() || null,
+          blog_framework: blogFramework,
+        })
+        toast.success('Configuração GitHub salva!')
+      } catch {
+        toast.error('Erro ao salvar configuração')
+      }
+    })
+  }
+
+  const blogConfigSnippet = `"a2publisher": {
+  "site_id": "${site.id}",
+  "api_key": "${site.generator_api_key}",
+  "publisher_url": "${apiBase}"
+}`
 
   const nextjsListCode = `// app/blog/page.tsx
 export default async function BlogPage() {
@@ -389,6 +451,16 @@ function nodeToHtml(node) {
               >
                 <FileCode2 size={14} /> HTML puro
               </button>
+              <button
+                onClick={() => setTab('generator')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tab === 'generator'
+                    ? 'border-neutral-900 text-neutral-900'
+                    : 'border-transparent text-neutral-400 hover:text-neutral-600'
+                }`}
+              >
+                <Bot size={14} /> Gerador de Posts
+              </button>
             </div>
           </div>
 
@@ -448,30 +520,137 @@ function nodeToHtml(node) {
                 </Step>
               </>
             )}
+
+            {tab === 'generator' && (
+              <div className="space-y-6">
+                {/* Credenciais do gerador */}
+                <div className="border border-neutral-200 rounded-lg bg-white p-5 space-y-4">
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                    Credenciais do Gerador
+                  </p>
+                  <CopyField label="generator_api_key" value={site.generator_api_key} />
+                  <CopyField label="site_id" value={site.id} />
+                </div>
+
+                {/* Snippet para blog.config.json */}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-900">Adicione ao blog.config.json do gerador</p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Cole o trecho abaixo dentro do objeto raiz do arquivo <code className="text-xs bg-neutral-100 px-1 py-0.5 rounded">blog.config.json</code> do projeto gerador-artigo.
+                    </p>
+                  </div>
+                  <CodeBlock code={blogConfigSnippet} language="json" />
+                </div>
+
+                {/* Configuração GitHub (somente para sites de código) */}
+                <div className="border border-neutral-200 rounded-lg bg-white p-5 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                      Configuração GitHub
+                    </p>
+                    <p className="text-xs text-neutral-400">
+                      Necessário para publicar posts diretamente no repositório do site (Netlify, Vercel, GitHub Pages).
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Repositório</Label>
+                      <Input
+                        value={githubRepo}
+                        onChange={e => setGithubRepo(e.target.value)}
+                        placeholder="owner/nome-do-repo"
+                        className="text-xs h-8 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Branch</Label>
+                      <Input
+                        value={githubBranch}
+                        onChange={e => setGithubBranch(e.target.value)}
+                        placeholder="main"
+                        className="text-xs h-8 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Caminho dos posts</Label>
+                      <Input
+                        value={blogOutputPath}
+                        onChange={e => setBlogOutputPath(e.target.value)}
+                        placeholder="blog/  ou  src/data/blog/"
+                        className="text-xs h-8 font-mono"
+                      />
+                      <p className="text-xs text-neutral-400">Pasta onde os arquivos de post serão criados no repo</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Framework do blog</Label>
+                      <select
+                        value={blogFramework ?? ''}
+                        onChange={e => setBlogFramework((e.target.value || null) as Site['blog_framework'])}
+                        className="w-full text-xs h-8 border border-neutral-200 rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-neutral-400 bg-white"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="vanilla-html">Vanilla HTML (.html)</option>
+                        <option value="nextjs-ts-data">Next.js TS Data (.ts)</option>
+                        <option value="astro">Astro (.md)</option>
+                        <option value="none">Nenhum (não publicar via GitHub)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={handleSaveGithubConfig}
+                    disabled={isPending}
+                    className="w-full"
+                  >
+                    {isPending ? 'Salvando...' : 'Salvar configuração GitHub'}
+                  </Button>
+                </div>
+
+                {/* Como conectar */}
+                <div className="border border-neutral-200 rounded-lg bg-neutral-50 p-5 space-y-2">
+                  <p className="text-xs font-semibold text-neutral-700">Como conectar o gerador</p>
+                  <p className="text-xs text-neutral-500">
+                    Copie o arquivo <code className="bg-white border border-neutral-200 px-1 py-0.5 rounded text-xs">CONECTAR_A2PUBLISHER.md</code> para a raiz do projeto <strong>gerador-artigo</strong> e instrua o agente:{' '}
+                    <em>&ldquo;Execute o CONECTAR_A2PUBLISHER.md&rdquo;</em>.
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    O agente fará o setup automaticamente: atualiza o <code className="text-xs">blog.config.json</code>, cria o script Python e integra ao workflow de publicação.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Endpoints de referência */}
-          <div className="mt-10 border border-neutral-200 rounded-lg bg-white overflow-hidden">
-            <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50">
-              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Endpoints disponíveis</p>
-            </div>
-            <div className="divide-y divide-neutral-100">
-              <div className="px-5 py-3 flex items-start gap-4">
-                <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
-                <div>
-                  <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...</code>
-                  <p className="text-xs text-neutral-400 mt-0.5">Lista todos os posts publicados do site</p>
+          {/* Endpoints de referência — só exibe nas tabs de código */}
+          {(tab === 'nextjs' || tab === 'html') && (
+            <div className="mt-10 border border-neutral-200 rounded-lg bg-white overflow-hidden">
+              <div className="px-5 py-3 border-b border-neutral-200 bg-neutral-50">
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Endpoints disponíveis</p>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                <div className="px-5 py-3 flex items-start gap-4">
+                  <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
+                  <div>
+                    <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...</code>
+                    <p className="text-xs text-neutral-400 mt-0.5">Lista todos os posts publicados do site</p>
+                  </div>
+                </div>
+                <div className="px-5 py-3 flex items-start gap-4">
+                  <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
+                  <div>
+                    <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...&slug=nome-do-post</code>
+                    <p className="text-xs text-neutral-400 mt-0.5">Retorna um post específico pelo slug</p>
+                  </div>
                 </div>
               </div>
-              <div className="px-5 py-3 flex items-start gap-4">
-                <Badge className="text-xs mt-0.5 shrink-0">GET</Badge>
-                <div>
-                  <code className="text-xs font-mono text-neutral-700">/api/posts?api_key=...&slug=nome-do-post</code>
-                  <p className="text-xs text-neutral-400 mt-0.5">Retorna um post específico pelo slug</p>
-                </div>
-              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

@@ -33,6 +33,11 @@ export interface Database {
           api_key: string
           platform: 'supabase' | 'wordpress'
           created_at: string
+          generator_api_key: string
+          github_repo: string | null
+          github_branch: string
+          blog_output_path: string | null
+          blog_framework: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
         }
         Insert: {
           id?: string
@@ -42,11 +47,21 @@ export interface Database {
           api_key?: string
           platform?: 'supabase' | 'wordpress'
           created_at?: string
+          generator_api_key?: string
+          github_repo?: string | null
+          github_branch?: string
+          blog_output_path?: string | null
+          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
         }
         Update: {
           name?: string
           domain?: string
           platform?: 'supabase' | 'wordpress'
+          generator_api_key?: string
+          github_repo?: string | null
+          github_branch?: string
+          blog_output_path?: string | null
+          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
         }
       }
       sites_wordpress_credentials: {
@@ -83,6 +98,9 @@ export interface Database {
           wp_metadata: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at: string
           updated_at: string
+          source: 'manual' | 'generated'
+          raw_html: string | null
+          github_sha: string | null
         }
         Insert: {
           id?: string
@@ -98,6 +116,9 @@ export interface Database {
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           created_at?: string
           updated_at?: string
+          source?: 'manual' | 'generated'
+          raw_html?: string | null
+          github_sha?: string | null
         }
         Update: {
           title?: string
@@ -110,6 +131,9 @@ export interface Database {
           published_at?: string | null
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
           updated_at?: string
+          source?: 'manual' | 'generated'
+          raw_html?: string | null
+          github_sha?: string | null
         }
       }
     }
