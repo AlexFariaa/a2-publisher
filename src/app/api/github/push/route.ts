@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Post não encontrado' }, { status: 404 })
   }
 
-  const siteOwner = (postData as { sites: { user_id: string } | null }).sites?.user_id
+  const siteOwner = (postData as { sites: { user_id: string }[] | null }).sites?.[0]?.user_id
 
   if (siteOwner !== user.id) {
     // Checar se é admin
