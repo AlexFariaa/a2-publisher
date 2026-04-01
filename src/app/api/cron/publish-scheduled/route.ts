@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   // 3. Filtrar apenas sites não-wordpress (wordpress publica via /api/publish-wordpress)
   const toProcess = (posts ?? []).filter(
-    (p) => (p as { sites: { platform: string } }).sites.platform !== 'wordpress',
+    (p) => (p as { sites: { platform: string }[] }).sites[0]?.platform !== 'wordpress',
   )
 
   // 4. Processar cada post sequencialmente para evitar rate limit do GitHub
