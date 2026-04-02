@@ -51,9 +51,29 @@ export default post
 // Gera conteúdo HTML completo para vanilla-html (arquivo .html puro)
 // Se blog_html_before e blog_html_after estiverem configurados no site, usa o template do cliente.
 // Caso contrário, gera um HTML bare genérico (retrocompatibilidade).
+function applyPostPlaceholders(template: string, post: Post): string {
+  const seoTitle = post.seo_title ?? post.title
+  const seoDesc = post.seo_description ?? ''
+  const dateIso = post.published_at
+    ? new Date(post.published_at).toISOString().split('T')[0]
+    : new Date().toISOString().split('T')[0]
+
+  return template
+    .replace(/\[TÍTULO\]/g, seoTitle)
+    .replace(/\[TITULO\]/g, seoTitle)
+    .replace(/\[DESCRIÇÃO\]/g, seoDesc)
+    .replace(/\[DESCRICAO\]/g, seoDesc)
+    .replace(/\[SLUG\]/g, post.slug)
+    .replace(/\[DATA-ISO\]/g, dateIso)
+    .replace(/\[COVER\]/g, post.cover_image ?? '')
+    .replace(/\[PALAVRAS-CHAVE\]/g, seoDesc)
+}
+
 function generateHtmlFile(post: Post, htmlBefore?: string | null, htmlAfter?: string | null): string {
   if (htmlBefore && htmlAfter) {
-    return htmlBefore + (post.raw_html ?? '') + htmlAfter
+    const before = applyPostPlaceholders(htmlBefore, post)
+    const after = applyPostPlaceholders(htmlAfter, post)
+    return before + (post.raw_html ?? '') + after
   }
 
   // Fallback: HTML bare genérico
