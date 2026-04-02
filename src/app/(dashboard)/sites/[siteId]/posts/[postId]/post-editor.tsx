@@ -319,19 +319,37 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
 
   async function handleGitHubPush() {
     setPublishing(true)
+    const publishedAt = new Date(scheduledAt).toISOString()
+
     try {
-      const res = await fetch('/api/github/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ post_id: post.id }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { error?: string }))
-        toast.error(data.error ?? 'Erro ao publicar no GitHub')
-        return
+      if (isScheduled) {
+        // Data futura: salva no Supabase — o cron fará o push no horário certo
+        const { error } = await supabase
+          .from('posts')
+          .update({ status: 'published', published_at: publishedAt })
+          .eq('id', post.id)
+
+        if (error) {
+          toast.error('Erro ao agendar post')
+          return
+        }
+        setPost(p => ({ ...p, status: 'published' as const, published_at: publishedAt }))
+        toast.success(`Post agendado para ${formatScheduledDate(publishedAt)}. Será publicado no GitHub automaticamente.`)
+      } else {
+        // Imediato: push direto no GitHub agora
+        const res = await fetch('/api/github/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post_id: post.id }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({} as { error?: string }))
+          toast.error(data.error ?? 'Erro ao publicar no GitHub')
+          return
+        }
+        setPost(p => ({ ...p, status: 'published' as const, published_at: new Date().toISOString() }))
+        toast.success('Post publicado no GitHub! Netlify está fazendo o deploy.')
       }
-      toast.success('Post publicado no GitHub! Netlify está fazendo o deploy.')
-      setPost(p => ({ ...p, status: 'published' as const, published_at: new Date().toISOString() }))
     } finally {
       setPublishing(false)
     }
@@ -396,7 +414,9 @@ export function PostEditor({ post: initialPost, site }: PostEditorProps) {
                 </Button>
               ) : isGenerated && githubEnabled ? (
                 <Button size="sm" onClick={handleGitHubPush} disabled={publishing}>
-                  {publishing ? 'Publicando...' : 'Publicar no GitHub'}
+                  {publishing
+                    ? (isScheduled ? 'Agendando...' : 'Publicando...')
+                    : (isScheduled ? 'Agendar no GitHub' : 'Publicar no GitHub')}
                 </Button>
               ) : (
                 <Button size="sm" onClick={handlePublish} disabled={publishing}>
