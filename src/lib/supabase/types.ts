@@ -38,6 +38,8 @@ export interface Database {
           github_branch: string
           blog_output_path: string | null
           blog_framework: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_html_before: string | null
+          blog_html_after: string | null
         }
         Insert: {
           id?: string
@@ -52,6 +54,8 @@ export interface Database {
           github_branch?: string
           blog_output_path?: string | null
           blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_html_before?: string | null
+          blog_html_after?: string | null
         }
         Update: {
           name?: string
@@ -62,6 +66,8 @@ export interface Database {
           github_branch?: string
           blog_output_path?: string | null
           blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_html_before?: string | null
+          blog_html_after?: string | null
         }
       }
       sites_wordpress_credentials: {

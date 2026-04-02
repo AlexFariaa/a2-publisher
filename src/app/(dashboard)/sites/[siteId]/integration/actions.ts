@@ -10,6 +10,8 @@ export async function saveGithubConfig(
     github_branch: string
     blog_output_path: string | null
     blog_framework: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+    blog_html_before: string | null
+    blog_html_after: string | null
   },
 ) {
   const supabase = await createClient()

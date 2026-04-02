@@ -95,6 +95,8 @@ export function IntegrationClient({ site, apiBase }: Props) {
   const [githubBranch, setGithubBranch] = useState(site.github_branch ?? 'main')
   const [blogOutputPath, setBlogOutputPath] = useState(site.blog_output_path ?? '')
   const [blogFramework, setBlogFramework] = useState<Site['blog_framework']>(site.blog_framework ?? null)
+  const [blogHtmlBefore, setBlogHtmlBefore] = useState(site.blog_html_before ?? '')
+  const [blogHtmlAfter, setBlogHtmlAfter] = useState(site.blog_html_after ?? '')
   const [isPending, startTransition] = useTransition()
 
   const isWordPress = site.platform === 'wordpress'
@@ -117,6 +119,8 @@ export function IntegrationClient({ site, apiBase }: Props) {
           github_branch: githubBranch.trim() || 'main',
           blog_output_path: blogOutputPath.trim() || null,
           blog_framework: blogFramework,
+          blog_html_before: blogHtmlBefore.trim() || null,
+          blog_html_after: blogHtmlAfter.trim() || null,
         })
         toast.success('Configuração GitHub salva!')
       } catch {
@@ -600,6 +604,45 @@ function nodeToHtml(node) {
                         <option value="none">Nenhum (não publicar via GitHub)</option>
                       </select>
                     </div>
+
+                    {blogFramework === 'vanilla-html' && (
+                      <>
+                        <div className="pt-2 border-t border-neutral-100">
+                          <p className="text-xs font-semibold text-neutral-700 mb-0.5">Template HTML do post</p>
+                          <p className="text-xs text-neutral-400 mb-3">
+                            Cole o HTML fixo do seu site dividido em dois campos. O corpo do artigo gerado é inserido entre eles automaticamente.
+                          </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">HTML antes do conteúdo</Label>
+                          <p className="text-xs text-neutral-400">
+                            Inclui tudo até a abertura da div que envolve o artigo: <code className="bg-neutral-100 px-1 rounded">{'<!DOCTYPE html>'}</code>, <code className="bg-neutral-100 px-1 rounded">{'<head>'}</code>, nav, abertura do <code className="bg-neutral-100 px-1 rounded">{'<div class="article-body">'}</code>.
+                          </p>
+                          <textarea
+                            value={blogHtmlBefore}
+                            onChange={e => setBlogHtmlBefore(e.target.value)}
+                            rows={10}
+                            placeholder={'<!DOCTYPE html>\n<html lang="pt-BR">\n<head>...\n</head>\n<body>\n  <header>...</header>\n  <div class="article-body">'}
+                            className="w-full text-xs border border-neutral-200 rounded-md px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-y"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">HTML depois do conteúdo</Label>
+                          <p className="text-xs text-neutral-400">
+                            Inclui o fechamento da div do artigo, sidebar, footer e fechamento do <code className="bg-neutral-100 px-1 rounded">{'</body>'}</code>.
+                          </p>
+                          <textarea
+                            value={blogHtmlAfter}
+                            onChange={e => setBlogHtmlAfter(e.target.value)}
+                            rows={8}
+                            placeholder={'  </div>\n  <aside>...</aside>\n  <footer>...</footer>\n</body>\n</html>'}
+                            className="w-full text-xs border border-neutral-200 rounded-md px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-y"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <Button

@@ -36,6 +36,13 @@ ALTER TABLE public.posts
   -- SHA do blob no GitHub (não do commit) — necessário para PUT quando o arquivo já existe
   ADD COLUMN IF NOT EXISTS github_sha TEXT;
 
+-- Templates HTML para sites vanilla-html
+-- blog_html_before: tudo que vem antes do corpo do artigo (head, nav, abertura da div)
+-- blog_html_after:  tudo que vem depois do corpo do artigo (sidebar, footer, fechamento)
+ALTER TABLE public.sites
+  ADD COLUMN IF NOT EXISTS blog_html_before TEXT,
+  ADD COLUMN IF NOT EXISTS blog_html_after  TEXT;
+
 -- ── Verificação ────────────────────────────────────────────
 -- Após executar, confirme com:
 --

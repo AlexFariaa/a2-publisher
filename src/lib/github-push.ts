@@ -49,7 +49,14 @@ export default post
 }
 
 // Gera conteúdo HTML completo para vanilla-html (arquivo .html puro)
-function generateHtmlFile(post: Post): string {
+// Se blog_html_before e blog_html_after estiverem configurados no site, usa o template do cliente.
+// Caso contrário, gera um HTML bare genérico (retrocompatibilidade).
+function generateHtmlFile(post: Post, htmlBefore?: string | null, htmlAfter?: string | null): string {
+  if (htmlBefore && htmlAfter) {
+    return htmlBefore + (post.raw_html ?? '') + htmlAfter
+  }
+
+  // Fallback: HTML bare genérico
   const seoTitle = post.seo_title ?? post.title
   const seoDesc = post.seo_description ?? ''
   const coverMeta = post.cover_image
@@ -278,7 +285,7 @@ export async function pushPostToGitHub(
   // 1. Buscar post + site
   const { data: postData, error: postError } = await supabaseAdmin
     .from('posts')
-    .select('*, sites(github_repo, github_branch, blog_output_path, blog_framework)')
+    .select('*, sites(github_repo, github_branch, blog_output_path, blog_framework, blog_html_before, blog_html_after)')
     .eq('id', postId)
     .single()
 
@@ -287,7 +294,7 @@ export async function pushPostToGitHub(
   }
 
   const post = postData as Post & {
-    sites: Pick<Site, 'github_repo' | 'github_branch' | 'blog_output_path' | 'blog_framework'>
+    sites: Pick<Site, 'github_repo' | 'github_branch' | 'blog_output_path' | 'blog_framework' | 'blog_html_before' | 'blog_html_after'>
   }
   const site = post.sites
 
@@ -317,7 +324,7 @@ export async function pushPostToGitHub(
   } else {
     // vanilla-html (padrão)
     const filePath = `${outputPath}${post.slug}.html`
-    result = await pushSingleFile(repo, branch, filePath, generateHtmlFile(post), commitMsg)
+    result = await pushSingleFile(repo, branch, filePath, generateHtmlFile(post, site.blog_html_before, site.blog_html_after), commitMsg)
   }
 
   if ('error' in result) return { success: false, error: result.error }
