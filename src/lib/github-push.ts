@@ -51,20 +51,33 @@ export default post
 // Gera conteúdo HTML completo para vanilla-html (arquivo .html puro)
 // Se blog_html_before e blog_html_after estiverem configurados no site, usa o template do cliente.
 // Caso contrário, gera um HTML bare genérico (retrocompatibilidade).
+const PT_BR_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+function estimateReadingTime(html: string): number {
+  const text = html.replace(/<[^>]+>/g, ' ')
+  const words = text.trim().split(/\s+/).filter(Boolean).length
+  return Math.max(1, Math.ceil(words / 200))
+}
+
 function applyPostPlaceholders(template: string, post: Post): string {
   const seoTitle = post.seo_title ?? post.title
   const seoDesc = post.seo_description ?? ''
-  const dateIso = post.published_at
-    ? new Date(post.published_at).toISOString().split('T')[0]
-    : new Date().toISOString().split('T')[0]
+  const date = post.published_at ? new Date(post.published_at) : new Date()
+  const dateIso = date.toISOString().split('T')[0]
+  const dateFormatted = `${date.getUTCDate()} ${PT_BR_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+  const readingTime = estimateReadingTime(post.raw_html ?? '')
 
   return template
     .replace(/\[TÍTULO\]/g, seoTitle)
     .replace(/\[TITULO\]/g, seoTitle)
+    .replace(/\[TÍTULO H1\]/g, post.title)
+    .replace(/\[TITULO H1\]/g, post.title)
     .replace(/\[DESCRIÇÃO\]/g, seoDesc)
     .replace(/\[DESCRICAO\]/g, seoDesc)
     .replace(/\[SLUG\]/g, post.slug)
     .replace(/\[DATA-ISO\]/g, dateIso)
+    .replace(/\[DATA FORMATADA\]/g, dateFormatted)
+    .replace(/\[X min de leitura\]/g, `${readingTime} min de leitura`)
     .replace(/\[COVER\]/g, post.cover_image ?? '')
     .replace(/\[PALAVRAS-CHAVE\]/g, seoDesc)
 }
