@@ -518,6 +518,18 @@ export async function pushPostToGitHub(
     ? site.blog_output_path.replace(/\/?$/, '/')  // garante trailing slash
     : 'blog/'
 
+  const normalizedOutputPath = outputPath.replace(/\\/g, '/').toLowerCase()
+  const looksLikeNextjsBlogPostProject =
+    normalizedOutputPath.endsWith('src/data/blog/') ||
+    normalizedOutputPath.includes('/src/data/blog/')
+
+  if (site.blog_framework === 'nextjs-ts-data' && looksLikeNextjsBlogPostProject) {
+    return {
+      success: false,
+      error: 'Configuração incompatível: para projetos em src/data/blog use framework "nextjs" (BlogPost).',
+    }
+  }
+
   // 3. Push conforme framework
   let result: { sha: string; commitUrl: string } | { error: string }
   const commitMsg = `blog: publicar artigo ${post.slug}`

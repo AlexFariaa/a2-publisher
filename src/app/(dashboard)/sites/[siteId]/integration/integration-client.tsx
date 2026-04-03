@@ -599,11 +599,16 @@ function nodeToHtml(node) {
                       >
                         <option value="">Selecione...</option>
                         <option value="vanilla-html">Vanilla HTML (.html)</option>
-                        <option value="nextjs-ts-data">Next.js TS Data (.ts)</option>
-                        <option value="nextjs">Next.js BlogPost (.ts)</option>
+                        <option value="nextjs">Next.js BlogPost (.ts) — recomendado</option>
+                        <option value="nextjs-ts-data">Next.js TS Data (.ts) — legado</option>
                         <option value="astro">Astro (.md)</option>
                         <option value="none">Nenhum (não publicar via GitHub)</option>
                       </select>
+                      <p className="text-xs text-neutral-400">
+                        Para projetos com <code className="bg-neutral-100 px-1 rounded">src/data/blog</code> e
+                        <code className="bg-neutral-100 px-1 rounded"> src/data/blog-posts.ts</code>, use sempre
+                        <strong> nextjs</strong>.
+                      </p>
                     </div>
 
                     {blogFramework === 'vanilla-html' && (
