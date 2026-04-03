@@ -17,7 +17,15 @@ ALTER TABLE public.sites
   ADD COLUMN IF NOT EXISTS github_branch      TEXT NOT NULL DEFAULT 'main',
   ADD COLUMN IF NOT EXISTS blog_output_path   TEXT,          -- ex: "blog/" ou "src/data/blog/"
   ADD COLUMN IF NOT EXISTS blog_framework     TEXT
-    CHECK (blog_framework IN ('vanilla-html', 'nextjs-ts-data', 'astro', 'none'));
+    CHECK (blog_framework IN ('vanilla-html', 'nextjs-ts-data', 'nextjs', 'astro', 'none'));
+
+-- Em bases já migradas, atualiza o CHECK para incluir 'nextjs'
+ALTER TABLE public.sites
+  DROP CONSTRAINT IF EXISTS sites_blog_framework_check;
+
+ALTER TABLE public.sites
+  ADD CONSTRAINT sites_blog_framework_check
+  CHECK (blog_framework IN ('vanilla-html', 'nextjs-ts-data', 'nextjs', 'astro', 'none'));
 
 -- Índice único para lookup O(1) no endpoint /api/import-post
 CREATE UNIQUE INDEX IF NOT EXISTS sites_generator_api_key_idx
@@ -34,7 +42,13 @@ ALTER TABLE public.posts
   ADD COLUMN IF NOT EXISTS raw_html   TEXT,
 
   -- SHA do blob no GitHub (não do commit) — necessário para PUT quando o arquivo já existe
-  ADD COLUMN IF NOT EXISTS github_sha TEXT;
+  ADD COLUMN IF NOT EXISTS github_sha TEXT,
+
+  -- Metadados obrigatórios para template Next.js tipado
+  ADD COLUMN IF NOT EXISTS category       TEXT,
+  ADD COLUMN IF NOT EXISTS author         TEXT,
+  ADD COLUMN IF NOT EXISTS read_time      TEXT,
+  ADD COLUMN IF NOT EXISTS thumb_image_url TEXT;
 
 -- Templates HTML para sites vanilla-html
 -- blog_html_before: tudo que vem antes do corpo do artigo (head, nav, abertura da div)

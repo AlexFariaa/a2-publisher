@@ -200,3 +200,39 @@ ALTER TABLE public.posts
 
 ALTER TABLE public.posts
   ADD COLUMN IF NOT EXISTS seo_title TEXT;
+
+-- ────────────────────────────────────────────────────────────
+-- 9. MIGRATION: Integração Gerador + Framework Next.js
+-- Execute no SQL Editor do Supabase caso já tenha rodado o schema anterior
+-- ────────────────────────────────────────────────────────────
+
+ALTER TABLE public.sites
+  ADD COLUMN IF NOT EXISTS generator_api_key TEXT
+    NOT NULL DEFAULT encode(gen_random_bytes(16), 'hex'),
+  ADD COLUMN IF NOT EXISTS github_repo      TEXT,
+  ADD COLUMN IF NOT EXISTS github_branch    TEXT NOT NULL DEFAULT 'main',
+  ADD COLUMN IF NOT EXISTS blog_output_path TEXT,
+  ADD COLUMN IF NOT EXISTS blog_framework   TEXT
+    CHECK (blog_framework IN ('vanilla-html', 'nextjs-ts-data', 'nextjs', 'astro', 'none')),
+  ADD COLUMN IF NOT EXISTS blog_html_before TEXT,
+  ADD COLUMN IF NOT EXISTS blog_html_after  TEXT;
+
+ALTER TABLE public.sites
+  DROP CONSTRAINT IF EXISTS sites_blog_framework_check;
+
+ALTER TABLE public.sites
+  ADD CONSTRAINT sites_blog_framework_check
+  CHECK (blog_framework IN ('vanilla-html', 'nextjs-ts-data', 'nextjs', 'astro', 'none'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS sites_generator_api_key_idx
+  ON public.sites(generator_api_key);
+
+ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual'
+    CHECK (source IN ('manual', 'generated')),
+  ADD COLUMN IF NOT EXISTS raw_html TEXT,
+  ADD COLUMN IF NOT EXISTS github_sha TEXT,
+  ADD COLUMN IF NOT EXISTS category TEXT,
+  ADD COLUMN IF NOT EXISTS author TEXT,
+  ADD COLUMN IF NOT EXISTS read_time TEXT,
+  ADD COLUMN IF NOT EXISTS thumb_image_url TEXT;

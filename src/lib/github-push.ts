@@ -27,6 +27,17 @@ function toCamelCase(slug: string): string {
     .join('')
 }
 
+function escapeSingleQuoted(input: string): string {
+  return input.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+function formatDatePtBR(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = PT_BR_MONTHS[date.getMonth()]
+  const year = date.getFullYear()
+  return `${day} ${month} ${year}`
+}
+
 // Gera o arquivo .ts para framework nextjs-ts-data
 function generateTsDataFile(post: Post): string {
   const safeTitle = post.title.replace(/'/g, "\\'").replace(/`/g, '\\`')
@@ -45,6 +56,38 @@ function generateTsDataFile(post: Post): string {
 }
 
 export default post
+`
+}
+
+function generateNextjsBlogPostFile(post: Post, commitDate: Date): string {
+  const safeTitle = escapeSingleQuoted(post.title)
+  const safeSeoTitle = escapeSingleQuoted(post.seo_title ?? post.title)
+  const safeSeoDescription = escapeSingleQuoted(post.seo_description ?? '')
+  const safeCategory = escapeSingleQuoted(post.category ?? '')
+  const safeAuthor = escapeSingleQuoted(post.author ?? '')
+  const safeReadTime = escapeSingleQuoted(post.read_time ?? '')
+  const safeCoverImage = escapeSingleQuoted(post.cover_image ?? '')
+  const safeThumbImage = escapeSingleQuoted(post.thumb_image_url ?? '')
+  const safeHtml = (post.raw_html ?? '').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
+  const dateFormatted = formatDatePtBR(commitDate)
+
+  return `import type { BlogPost } from "@/data/blog-posts";
+
+const post: BlogPost = {
+  slug: '${post.slug}',
+  title: '${safeTitle}',
+  metaTitle: '${safeSeoTitle}',
+  excerpt: '${safeSeoDescription}',
+  date: '${dateFormatted}',
+  category: '${safeCategory}',
+  author: '${safeAuthor}',
+  readTime: '${safeReadTime}',
+  coverImage: '${safeCoverImage}',
+  thumbImage: '${safeThumbImage}',
+  content: \`${safeHtml}\`,
+};
+
+export default post;
 `
 }
 
@@ -309,6 +352,136 @@ async function pushNextjsTsData(
   return { sha: postBlob.sha, commitUrl: newCommit.html_url }
 }
 
+async function pushNextjsBlogPost(
+  post: Post,
+  repo: string,
+  branch: string,
+  outputPath: string,
+): Promise<{ sha: string; commitUrl: string } | { error: string }> {
+  const slug = post.slug
+  const camel = toCamelCase(slug)
+  const normalizedOutputPath = outputPath.replace(/\/+$|^\/+?/g, '').replace(/\/+/g, '/')
+  const postFilePath = `${normalizedOutputPath}/${slug}.ts`
+  const indexDir = normalizedOutputPath.replace(/\/[^/]+$/, '')
+  const indexFilePath = `${indexDir}/blog-posts.ts`
+  const blogFolder = normalizedOutputPath.split('/').filter(Boolean).pop()
+
+  if (!blogFolder) {
+    return { error: 'blog_output_path inválido para framework nextjs' }
+  }
+
+  const importAnchor = '// novos artigos: adicionar 1 linha de import aqui'
+  const arrayAnchor = '// novos artigos: adicionar 1 item no array aqui'
+
+  const refRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/refs/heads/${branch}`,
+    { headers: githubHeaders() },
+  )
+  if (!refRes.ok) return { error: `Falha ao obter ref: ${refRes.status}` }
+  const refData = await refRes.json() as { object: { sha: string } }
+  const currentCommitSha = refData.object.sha
+
+  const commitRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/commits/${currentCommitSha}`,
+    { headers: githubHeaders() },
+  )
+  if (!commitRes.ok) return { error: `Falha ao obter commit: ${commitRes.status}` }
+  const commitData = await commitRes.json() as { tree: { sha: string } }
+  const baseTreeSha = commitData.tree.sha
+
+  const postContent = generateNextjsBlogPostFile(post, new Date())
+  const postBlobRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/blobs`,
+    {
+      method: 'POST',
+      headers: githubHeaders(),
+      body: JSON.stringify({ content: postContent, encoding: 'utf-8' }),
+    },
+  )
+  if (!postBlobRes.ok) return { error: `Falha ao criar blob do post: ${postBlobRes.status}` }
+  const postBlob = await postBlobRes.json() as { sha: string }
+
+  const indexRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/contents/${indexFilePath}?ref=${branch}`,
+    { headers: githubHeaders() },
+  )
+  if (!indexRes.ok) {
+    return { error: `Arquivo de índice não encontrado: ${indexFilePath}` }
+  }
+
+  const indexData = await indexRes.json() as { content: string }
+  let updatedIndexContent = Buffer.from(indexData.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+
+  if (!updatedIndexContent.includes(importAnchor) || !updatedIndexContent.includes(arrayAnchor)) {
+    return { error: `Âncoras de atualização não encontradas em ${indexFilePath}` }
+  }
+
+  const importLine = `import ${camel} from "./${blogFolder}/${slug}";`
+  const arrayLine = `  ${camel},`
+
+  if (!updatedIndexContent.includes(importLine)) {
+    updatedIndexContent = updatedIndexContent.replace(importAnchor, `${importLine}\n${importAnchor}`)
+  }
+  if (!updatedIndexContent.includes(arrayLine)) {
+    updatedIndexContent = updatedIndexContent.replace(arrayAnchor, `${arrayLine}\n${arrayAnchor}`)
+  }
+
+  const indexBlobRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/blobs`,
+    {
+      method: 'POST',
+      headers: githubHeaders(),
+      body: JSON.stringify({ content: updatedIndexContent, encoding: 'utf-8' }),
+    },
+  )
+  if (!indexBlobRes.ok) return { error: `Falha ao criar blob do index: ${indexBlobRes.status}` }
+  const indexBlob = await indexBlobRes.json() as { sha: string }
+
+  const treeRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/trees`,
+    {
+      method: 'POST',
+      headers: githubHeaders(),
+      body: JSON.stringify({
+        base_tree: baseTreeSha,
+        tree: [
+          { path: postFilePath, mode: '100644', type: 'blob', sha: postBlob.sha },
+          { path: indexFilePath, mode: '100644', type: 'blob', sha: indexBlob.sha },
+        ],
+      }),
+    },
+  )
+  if (!treeRes.ok) return { error: `Falha ao criar tree: ${treeRes.status}` }
+  const treeData = await treeRes.json() as { sha: string }
+
+  const newCommitRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/commits`,
+    {
+      method: 'POST',
+      headers: githubHeaders(),
+      body: JSON.stringify({
+        message: `blog: publicar artigo ${slug}`,
+        tree: treeData.sha,
+        parents: [currentCommitSha],
+      }),
+    },
+  )
+  if (!newCommitRes.ok) return { error: `Falha ao criar commit: ${newCommitRes.status}` }
+  const newCommit = await newCommitRes.json() as { sha: string; html_url: string }
+
+  const patchRes = await fetch(
+    `${GITHUB_API}/repos/${repo}/git/refs/heads/${branch}`,
+    {
+      method: 'PATCH',
+      headers: githubHeaders(),
+      body: JSON.stringify({ sha: newCommit.sha }),
+    },
+  )
+  if (!patchRes.ok) return { error: `Falha ao atualizar ref: ${patchRes.status}` }
+
+  return { sha: postBlob.sha, commitUrl: newCommit.html_url }
+}
+
 // ── Função principal exportada ────────────────────────────────
 
 export async function pushPostToGitHub(
@@ -349,7 +522,9 @@ export async function pushPostToGitHub(
   let result: { sha: string; commitUrl: string } | { error: string }
   const commitMsg = `blog: publicar artigo ${post.slug}`
 
-  if (site.blog_framework === 'nextjs-ts-data') {
+  if (site.blog_framework === 'nextjs') {
+    result = await pushNextjsBlogPost(post, repo, branch, outputPath)
+  } else if (site.blog_framework === 'nextjs-ts-data') {
     result = await pushNextjsTsData(post, repo, branch, outputPath)
   } else if (site.blog_framework === 'astro') {
     const filePath = `${outputPath}${post.slug}.md`

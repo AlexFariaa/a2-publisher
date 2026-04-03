@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null
   const siteId = formData.get('site_id') as string | null
   const postSlug = formData.get('post_slug') as string | null
+  const imageTypeRaw = formData.get('type') as string | null
+  const imageType = imageTypeRaw === 'thumb' ? 'thumb' : 'cover'
 
   if (!file || !siteId || !postSlug) {
     return NextResponse.json(
@@ -44,7 +46,8 @@ export async function POST(request: NextRequest) {
   // 4. Determinar content-type e extensão
   const contentType = file.type || 'image/avif'
   const ext = contentType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'avif'
-  const storagePath = `${siteId}/${postSlug}/cover.${ext}`
+  const filename = imageType === 'thumb' ? `thumb.${ext}` : `cover.${ext}`
+  const storagePath = `${siteId}/${postSlug}/${filename}`
 
   // 5. Upload para Supabase Storage
   const buffer = await file.arrayBuffer()

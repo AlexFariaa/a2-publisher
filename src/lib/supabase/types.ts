@@ -37,7 +37,7 @@ export interface Database {
           github_repo: string | null
           github_branch: string
           blog_output_path: string | null
-          blog_framework: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_framework: 'vanilla-html' | 'nextjs-ts-data' | 'nextjs' | 'astro' | 'none' | null
           blog_html_before: string | null
           blog_html_after: string | null
         }
@@ -53,7 +53,7 @@ export interface Database {
           github_repo?: string | null
           github_branch?: string
           blog_output_path?: string | null
-          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'nextjs' | 'astro' | 'none' | null
           blog_html_before?: string | null
           blog_html_after?: string | null
         }
@@ -65,7 +65,7 @@ export interface Database {
           github_repo?: string | null
           github_branch?: string
           blog_output_path?: string | null
-          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'astro' | 'none' | null
+          blog_framework?: 'vanilla-html' | 'nextjs-ts-data' | 'nextjs' | 'astro' | 'none' | null
           blog_html_before?: string | null
           blog_html_after?: string | null
         }
@@ -99,6 +99,10 @@ export interface Database {
           cover_image: string | null
           seo_title: string | null
           seo_description: string | null
+          category: string | null
+          author: string | null
+          read_time: string | null
+          thumb_image_url: string | null
           status: 'draft' | 'published'
           published_at: string | null
           wp_metadata: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
@@ -117,6 +121,10 @@ export interface Database {
           cover_image?: string | null
           seo_title?: string | null
           seo_description?: string | null
+          category?: string | null
+          author?: string | null
+          read_time?: string | null
+          thumb_image_url?: string | null
           status?: 'draft' | 'published'
           published_at?: string | null
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null
@@ -133,6 +141,10 @@ export interface Database {
           cover_image?: string | null
           seo_title?: string | null
           seo_description?: string | null
+          category?: string | null
+          author?: string | null
+          read_time?: string | null
+          thumb_image_url?: string | null
           status?: 'draft' | 'published'
           published_at?: string | null
           wp_metadata?: { category_ids?: number[]; tag_ids?: number[]; wp_post_id?: number; wp_featured_media_id?: number } | null

@@ -600,6 +600,7 @@ function nodeToHtml(node) {
                         <option value="">Selecione...</option>
                         <option value="vanilla-html">Vanilla HTML (.html)</option>
                         <option value="nextjs-ts-data">Next.js TS Data (.ts)</option>
+                        <option value="nextjs">Next.js BlogPost (.ts)</option>
                         <option value="astro">Astro (.md)</option>
                         <option value="none">Nenhum (não publicar via GitHub)</option>
                       </select>

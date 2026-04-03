@@ -16,14 +16,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
   }
 
-  const { site_id, title, slug, raw_html, cover_image_url, seo_title, seo_description } = body as {
+  const {
+    site_id,
+    title,
+    slug,
+    raw_html,
+    cover_image_url,
+    thumb_image_url,
+    seo_title,
+    seo_description,
+    category,
+    author,
+    read_time,
+  } = body as {
     site_id?: string
     title?: string
     slug?: string
     raw_html?: string
     cover_image_url?: string
+    thumb_image_url?: string
     seo_title?: string
     seo_description?: string
+    category?: string
+    author?: string
+    read_time?: string
   }
 
   if (!site_id || !title || !slug || !raw_html) {
@@ -71,8 +87,12 @@ export async function POST(request: NextRequest) {
       slug,
       raw_html,
       cover_image: cover_image_url ?? null,
+      thumb_image_url: thumb_image_url ?? null,
       seo_title: seo_title ?? null,
       seo_description: seo_description ?? null,
+      category: category ?? null,
+      author: author ?? null,
+      read_time: read_time ?? null,
       source: 'generated',
       status: 'draft',
       content: null,
