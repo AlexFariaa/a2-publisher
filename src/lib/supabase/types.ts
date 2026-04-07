@@ -154,6 +154,47 @@ export interface Database {
           github_sha?: string | null
         }
       }
+      gmb_posts: {
+        Row: {
+          id: string
+          client_id: string
+          client_name: string
+          format: 'dica' | 'dado' | 'pergunta' | 'cta' | 'mito' | 'bastidores'
+          title: string
+          body: string
+          cta: string
+          hashtags: string[]
+          source_url: string | null
+          generated_at: string
+          status: 'recebido' | 'publicado'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          client_name: string
+          format: 'dica' | 'dado' | 'pergunta' | 'cta' | 'mito' | 'bastidores'
+          title: string
+          body: string
+          cta?: string
+          hashtags?: string[]
+          source_url?: string | null
+          generated_at: string
+          status?: 'recebido' | 'publicado'
+          created_at?: string
+        }
+        Update: {
+          client_name?: string
+          format?: 'dica' | 'dado' | 'pergunta' | 'cta' | 'mito' | 'bastidores'
+          title?: string
+          body?: string
+          cta?: string
+          hashtags?: string[]
+          source_url?: string | null
+          generated_at?: string
+          status?: 'recebido' | 'publicado'
+        }
+      }
     }
     Functions: {
       is_admin: {
@@ -169,6 +210,7 @@ export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Site = Database['public']['Tables']['sites']['Row']
 export type Post = Database['public']['Tables']['posts']['Row']
 export type SiteWordpressCredential = Database['public']['Tables']['sites_wordpress_credentials']['Row']
+export type GmbPost = Database['public']['Tables']['gmb_posts']['Row']
 
 export interface WpTaxonomyItem {
   id: number

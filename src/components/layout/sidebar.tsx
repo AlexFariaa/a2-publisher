@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/supabase/types'
-import { LayoutDashboard, LogOut, Settings, Users } from 'lucide-react'
+import { LayoutDashboard, LogOut, MapPin, Settings, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -31,6 +31,7 @@ export function Sidebar({ profile }: SidebarProps) {
   const adminItems = [
     { href: '/admin/clients', label: 'Clientes', icon: Users },
     { href: '/admin/sites', label: 'Sites', icon: Settings },
+    { href: '/admin/gmb-posts', label: 'Artigos GMB', icon: MapPin },
   ]
 
   return (
