@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { FileText } from 'lucide-react'
+import { FileText, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { GmbPost } from '@/lib/supabase/types'
 
@@ -40,6 +40,7 @@ export function GmbPostsList({ posts: initialPosts }: GmbPostsListProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos')
   const [clientFilter, setClientFilter] = useState<string>('todos')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const clientNames = useMemo(() => {
     return Array.from(new Set(posts.map(p => p.client_name))).sort()
@@ -62,6 +63,19 @@ export function GmbPostsList({ posts: initialPosts }: GmbPostsListProps) {
     }
     return Array.from(map.entries())
   }, [filtered])
+
+  async function handleDelete(postId: string) {
+    if (!confirm('Tem certeza que deseja deletar este artigo?')) return
+    setDeleting(postId)
+    try {
+      const res = await fetch(`/api/admin/gmb-posts/${postId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setPosts(prev => prev.filter(p => p.id !== postId))
+      }
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   async function handleStatusChange(postId: string, newStatus: 'recebido' | 'publicado') {
     setUpdating(postId)
@@ -185,6 +199,17 @@ export function GmbPostsList({ posts: initialPosts }: GmbPostsListProps) {
                         <span className="text-xs text-neutral-400">
                           {new Date(post.generated_at).toLocaleDateString('pt-BR')}
                         </span>
+                        <button
+                          onClick={() => handleDelete(post.id)}
+                          disabled={deleting === post.id}
+                          className={cn(
+                            'text-neutral-300 hover:text-red-500 transition-colors',
+                            deleting === post.id && 'opacity-50 cursor-not-allowed',
+                          )}
+                          title="Deletar artigo"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>

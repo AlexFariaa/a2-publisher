@@ -49,3 +49,36 @@ export async function PATCH(
 
   return NextResponse.json({ success: true })
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if ((profile as Pick<Profile, 'role'> | null)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Apenas admins podem deletar posts GMB' }, { status: 403 })
+  }
+
+  const { id } = await params
+
+  const { error } = await supabase
+    .from('gmb_posts')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('[admin/gmb-posts/delete] Erro ao deletar post:', error)
+    return NextResponse.json({ error: 'Erro interno ao deletar post' }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
