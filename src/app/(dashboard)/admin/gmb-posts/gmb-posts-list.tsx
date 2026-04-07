@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { FileText } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { GmbPost } from '@/lib/supabase/types'
 
@@ -36,13 +35,14 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: 'publicado', label: 'Publicado' },
 ]
 
-export function GmbPostsList({ posts }: GmbPostsListProps) {
+export function GmbPostsList({ posts: initialPosts }: GmbPostsListProps) {
+  const [posts, setPosts] = useState<GmbPost[]>(initialPosts)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos')
   const [clientFilter, setClientFilter] = useState<string>('todos')
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const clientNames = useMemo(() => {
-    const names = Array.from(new Set(posts.map(p => p.client_name))).sort()
-    return names
+    return Array.from(new Set(posts.map(p => p.client_name))).sort()
   }, [posts])
 
   const filtered = useMemo(() => {
@@ -53,7 +53,6 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
     })
   }, [posts, statusFilter, clientFilter])
 
-  // Group by client_name preserving order (first occurrence wins sort)
   const grouped = useMemo(() => {
     const map = new Map<string, GmbPost[]>()
     for (const post of filtered) {
@@ -63,6 +62,22 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
     }
     return Array.from(map.entries())
   }, [filtered])
+
+  async function handleStatusChange(postId: string, newStatus: 'recebido' | 'publicado') {
+    setUpdating(postId)
+    try {
+      const res = await fetch(`/api/admin/gmb-posts/${postId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: newStatus } : p))
+      }
+    } finally {
+      setUpdating(null)
+    }
+  }
 
   if (posts.length === 0) {
     return (
@@ -77,7 +92,6 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
     <div>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
-        {/* Status tabs */}
         <div className="flex items-center gap-1 bg-neutral-100 rounded-md p-1">
           {STATUS_TABS.map(tab => (
             <button
@@ -95,7 +109,6 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
           ))}
         </div>
 
-        {/* Client filter */}
         <select
           value={clientFilter}
           onChange={e => setClientFilter(e.target.value)}
@@ -120,7 +133,6 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
         <div className="space-y-8">
           {grouped.map(([clientName, clientPosts]) => (
             <div key={clientName}>
-              {/* Client section header */}
               <div className="flex items-center gap-3 mb-3">
                 <h2 className="text-sm font-semibold text-neutral-700">{clientName}</h2>
                 <span className="text-xs text-neutral-400">{clientPosts.length} {clientPosts.length === 1 ? 'artigo' : 'artigos'}</span>
@@ -130,34 +142,46 @@ export function GmbPostsList({ posts }: GmbPostsListProps) {
               <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg overflow-hidden bg-white">
                 {clientPosts.map(post => (
                   <div key={post.id} className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-6">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span
                             className={cn(
-                              'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                              'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0',
                               FORMAT_COLORS[post.format],
                             )}
                           >
                             {FORMAT_LABELS[post.format]}
                           </span>
-                          <p className="text-sm font-medium text-neutral-900 truncate">{post.title}</p>
+                          <p className="text-sm font-medium text-neutral-900">{post.title}</p>
                         </div>
-                        <p className="text-xs text-neutral-500 line-clamp-2 mt-1">{post.body}</p>
+                        <p className="text-sm text-neutral-600 whitespace-pre-wrap">{post.body}</p>
+                        {post.cta && (
+                          <p className="text-xs text-neutral-500 mt-2 italic">{post.cta}</p>
+                        )}
                         {post.hashtags.length > 0 && (
-                          <p className="text-xs text-neutral-400 mt-1.5 truncate">
+                          <p className="text-xs text-neutral-400 mt-2">
                             {post.hashtags.map(h => `#${h}`).join(' ')}
                           </p>
                         )}
                       </div>
 
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <Badge
-                          variant={post.status === 'publicado' ? 'default' : 'secondary'}
-                          className="text-xs capitalize"
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <select
+                          value={post.status}
+                          disabled={updating === post.id}
+                          onChange={e => handleStatusChange(post.id, e.target.value as 'recebido' | 'publicado')}
+                          className={cn(
+                            'text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-neutral-300 cursor-pointer',
+                            post.status === 'publicado'
+                              ? 'bg-neutral-900 text-white border-neutral-900'
+                              : 'bg-white text-neutral-600 border-neutral-200',
+                            updating === post.id && 'opacity-50 cursor-not-allowed',
+                          )}
                         >
-                          {post.status}
-                        </Badge>
+                          <option value="recebido">Recebido</option>
+                          <option value="publicado">Publicado</option>
+                        </select>
                         <span className="text-xs text-neutral-400">
                           {new Date(post.generated_at).toLocaleDateString('pt-BR')}
                         </span>
